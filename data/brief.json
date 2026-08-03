@@ -1,0 +1,169 @@
+{
+  "run_id": "2026-W31",
+  "week": "2026-W31",
+  "baseline_week": "2026-W30",
+  "taxonomy_version": "v4.2",
+  "headline_fact_ids": [
+    "f_0194",
+    "f_0195"
+  ],
+  "top_drivers": [
+    {
+      "category": "payments_failed",
+      "direction": "up",
+      "count_fact_id": "f_0018",
+      "baseline_count_fact_id": "f_0017",
+      "change_fact_id": "f_0033",
+      "adjusted_p_value": 1.6998677078473954e-9,
+      "significant": true,
+      "concentrated_in_channel": "mobile_app"
+    },
+    {
+      "category": "vulnerable_customer_support",
+      "direction": "up",
+      "count_fact_id": "f_0024",
+      "baseline_count_fact_id": "f_0023",
+      "change_fact_id": "f_0036",
+      "adjusted_p_value": 0.0778152565831651,
+      "significant": true,
+      "concentrated_in_channel": "call_centre"
+    },
+    {
+      "category": "branch_closure",
+      "direction": "down",
+      "count_fact_id": "f_0004",
+      "baseline_count_fact_id": "f_0003",
+      "change_fact_id": "f_0026",
+      "adjusted_p_value": 0.05568769435625647,
+      "significant": true,
+      "concentrated_in_channel": null
+    },
+    {
+      "category": "statement_errors",
+      "direction": "up",
+      "count_fact_id": "f_0022",
+      "baseline_count_fact_id": "f_0021",
+      "change_fact_id": "f_0035",
+      "adjusted_p_value": 1.0,
+      "significant": false,
+      "concentrated_in_channel": null
+    }
+  ],
+  "flagged_categories": [
+    {
+      "category": "payments_failed",
+      "direction": "up",
+      "count_fact_id": "f_0018",
+      "baseline_count_fact_id": "f_0017",
+      "change_fact_id": "f_0033",
+      "adjusted_p_value": 1.6998677078473954e-9,
+      "significant": true,
+      "concentrated_in_channel": "mobile_app"
+    },
+    {
+      "category": "vulnerable_customer_support",
+      "direction": "up",
+      "count_fact_id": "f_0024",
+      "baseline_count_fact_id": "f_0023",
+      "change_fact_id": "f_0036",
+      "adjusted_p_value": 0.0778152565831651,
+      "significant": true,
+      "concentrated_in_channel": "call_centre"
+    },
+    {
+      "category": "branch_closure",
+      "direction": "down",
+      "count_fact_id": "f_0004",
+      "baseline_count_fact_id": "f_0003",
+      "change_fact_id": "f_0026",
+      "adjusted_p_value": 0.05568769435625647,
+      "significant": true,
+      "concentrated_in_channel": null
+    },
+    {
+      "category": "statement_errors",
+      "direction": "up",
+      "count_fact_id": "f_0022",
+      "baseline_count_fact_id": "f_0021",
+      "change_fact_id": "f_0035",
+      "adjusted_p_value": 1.0,
+      "significant": false,
+      "concentrated_in_channel": null
+    }
+  ],
+  "sentiment_signals": [
+    {
+      "scope": "payments_failed",
+      "channel": "call_centre",
+      "current_fact_id": "f_0116",
+      "baseline_fact_id": "f_0069",
+      "shift_fact_id": "f_0164",
+      "direction": "down"
+    },
+    {
+      "scope": "payments_failed",
+      "channel": "mobile_app",
+      "current_fact_id": "f_0140",
+      "baseline_fact_id": "f_0092",
+      "shift_fact_id": "f_0187",
+      "direction": "down"
+    }
+  ],
+  "candidate_themes": [
+    {
+      "theme_id": "CT-007",
+      "provisional_label": "unlabelled cluster of 34 complaints",
+      "size_fact_id": "f_0191",
+      "coherence": 0.3487827512311107,
+      "persistence_weeks": 3,
+      "channel_concentration": 0.35294117647058826,
+      "duplicate_ratio": 0.0,
+      "exemplar_complaint_ids": [
+        "CMP-2026W31-0526",
+        "CMP-2026W31-0527",
+        "CMP-2026W31-0528",
+        "CMP-2026W31-0529",
+        "CMP-2026W31-0530"
+      ]
+    },
+    {
+      "theme_id": "CT-012",
+      "provisional_label": "unlabelled cluster of 28 complaints",
+      "size_fact_id": "f_0192",
+      "coherence": 0.8796147248416981,
+      "persistence_weeks": 1,
+      "channel_concentration": 1.0,
+      "duplicate_ratio": 0.6785714285714286,
+      "exemplar_complaint_ids": [
+        "CMP-2026W31-0560",
+        "CMP-2026W31-0561",
+        "CMP-2026W31-0562",
+        "CMP-2026W31-0563",
+        "CMP-2026W31-0564"
+      ]
+    },
+    {
+      "theme_id": "CT-019",
+      "provisional_label": "unlabelled cluster of 11 complaints",
+      "size_fact_id": "f_0193",
+      "coherence": 0.32399357133756645,
+      "persistence_weeks": 1,
+      "channel_concentration": 0.36363636363636365,
+      "duplicate_ratio": 0.0,
+      "exemplar_complaint_ids": [
+        "CMP-2026W31-0588",
+        "CMP-2026W31-0589",
+        "CMP-2026W31-0590",
+        "CMP-2026W31-0591",
+        "CMP-2026W31-0592"
+      ]
+    }
+  ],
+  "health": {
+    "total_complaints_fact_id": "f_0194",
+    "abstention_rate_fact_id": "f_0195",
+    "residual_share_fact_id": "f_0196",
+    "quarantine_count_fact_id": "f_0197"
+  },
+  "skipped": []
+}

@@ -1,0 +1,201 @@
+{# Deterministic report template. Every figure here arrived via a fact ID and
+   every quotation was sliced from stored complaint text; neither passed
+   through the model. See render/renderer.py. #}
+# Weekly Complaints Report — {{ report.week }}
+
+**Status:** {{ report.status.value }} · **Run:** `{{ report.run_id }}` ·
+**Generated:** {{ generated_at }} ·
+**Compared against:** {{ report.baseline_week }}
+
+> This report is a **draft**. It is not a published record until a named
+> reviewer signs it off. All figures are precomputed and referenced by fact ID;
+> no figure in this document was produced by a language model.
+
+---
+
+## 1 · Complaint drivers
+
+{% if drivers %}
+{% for finding in drivers %}
+### {{ loop.index }}. {{ finding.category_display or finding.category }}
+
+**{{ finding.headline }}**
+
+{% for claim in finding.evidenced_claims %}
+{{ claim.text }}
+
+{% for citation in claim.citations %}
+> “{{ citation.quote }}”
+> — `{{ citation.complaint_id }}` ({{ citation.channel }}, {{ citation.week }}, chars {{ citation.start }}–{{ citation.end }})
+{% endfor %}
+
+{% endfor %}
+{% if finding.hypotheses %}
+**Hypotheses requiring confirmation.** The following are not established
+findings. Each requires a named owner to confirm or reject before it may be
+relied on.
+
+{% for hypothesis in finding.hypotheses %}
+- {{ hypothesis.text }} *(unconfirmed)*
+{% endfor %}
+
+{% endif %}
+{% endfor %}
+{% else %}
+_No driver findings were produced for this week._
+{% endif %}
+
+---
+
+## 2 · Emerging risk themes
+
+Themes below are clusters of complaints that matched no existing category.
+They are reported as narrative with evidence and **are not counted in the
+trend tables** — they have no comparable history. Adopting one as a category
+is a separate, human-approved decision.
+
+{% if emerging %}
+{% for finding in emerging %}
+### {{ finding.theme_id }} — {{ finding.headline }}
+
+{% for claim in finding.claims %}
+{{ claim.text }}
+
+{% for citation in claim.citations %}
+> “{{ citation.quote }}”
+> — `{{ citation.complaint_id }}` ({{ citation.channel }}, {{ citation.week }}, chars {{ citation.start }}–{{ citation.end }})
+{% endfor %}
+
+{% endfor %}
+{% endfor %}
+{% else %}
+_No candidate theme was assessed as a real emerging signal this week._
+{% endif %}
+
+### Candidate themes considered
+
+{% if adjudications %}
+| Theme | Verdict | Reasoning |
+|---|---|---|
+{% for item in adjudications %}
+| `{{ item.theme_id }}` | **{{ item.verdict.value.replace('_', ' ') }}**{% if item.duplicate_of_category %} ({{ item.duplicate_of_category }}){% endif %} | {{ item.rationale | replace('\n', ' ') }} |
+{% endfor %}
+
+Every candidate the metrics layer carried appears above, including those
+rejected. A theme dismissed silently is indistinguishable from one never
+examined.
+{% else %}
+_No candidate themes were carried into this run._
+{% endif %}
+
+---
+
+## 3 · Remediation recommendations
+
+Recommendations are grounded in how comparable complaints were **actually
+resolved**, retrieved from resolution notes on closed cases. They are not
+general good practice.
+
+{% if remediations %}
+{% for item in remediations %}
+### {{ item.finding_id }}
+
+{{ item.recommendation }}
+
+{% if item.suggested_owner %}
+**Suggested owner:** {{ item.suggested_owner }} *(advisory — a named owner is
+assigned at sign-off)*
+{% endif %}
+
+{% if item.transferring %}
+**Precedents relied on**
+
+{% for precedent in item.transferring %}
+- `{{ precedent.complaint_id }}` — {{ precedent.reason }}
+{% endfor %}
+{% endif %}
+
+{% if item.rejected %}
+**Precedents considered and ruled out**
+
+{% for precedent in item.rejected %}
+- `{{ precedent.complaint_id }}` — {{ precedent.reason }}
+{% endfor %}
+{% endif %}
+
+{% if item.citations %}
+{% for citation in item.citations %}
+> “{{ citation.quote }}”
+> — `{{ citation.complaint_id }}` ({{ citation.channel }}, {{ citation.week }})
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+{% else %}
+_No recommendation was grounded in transferable precedent this week._
+{% endif %}
+
+---
+
+## 4 · Verification
+
+Every check below is programmatic. No model was involved in verifying this
+report.
+
+| Check | Result | Detail |
+|---|---|---|
+{% for check in report.critic.checks %}
+| `{{ check.name }}` | {% if check.passed %}pass{% else %}**FAIL**{% endif %} | {{ check.detail }} |
+{% endfor %}
+
+{% if not report.critic.passed %}
+> **This draft did not pass verification.** It must not be published. The
+> failing checks are listed above with their locations.
+{% endif %}
+
+Revisions used: {{ report.critic.revision }}
+
+{% if report.trace.notes %}
+### Run notes
+
+The following degradations were recorded. They are part of the record.
+
+{% for note in report.trace.notes %}
+- {{ note }}
+{% endfor %}
+{% endif %}
+
+---
+
+## 5 · Provenance
+
+This report is reconstructable from the pinned versions below plus the fact
+store for run `{{ report.run_id }}`.
+
+| | |
+|---|---|
+| Taxonomy version | `{{ report.trace.versions.taxonomy_version }}` |
+| Prompt version | `{{ report.trace.versions.prompt_version }}` |
+| Model | `{{ report.trace.versions.model }}` |
+| LLM mode | `{{ report.trace.versions.llm_mode }}` |
+| Package version | `{{ report.trace.versions.package_version }}` |
+| Synthetic data seed | `{{ report.trace.versions.synth_seed }}` |
+
+**Prompt content hashes.** A prompt change is a code change; these hashes make
+an undeclared one detectable.
+
+| Prompt | SHA-256 |
+|---|---|
+{% for name, digest in report.trace.versions.prompt_hashes | dictsort %}
+| `{{ name }}` | `{{ digest[:16] }}…` |
+{% endfor %}
+
+**Run cost.** {{ report.trace.llm_calls | length }} model call(s),
+{{ report.trace.tool_calls | length }} tool call(s).
+
+**Node sequence.** `{{ report.trace.node_sequence | join(' → ') }}`
+
+---
+
+*All data in this report is synthetic. Nothing here relates to any real
+customer, complaint, or firm.*

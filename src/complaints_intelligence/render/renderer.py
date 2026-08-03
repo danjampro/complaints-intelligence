@@ -1,0 +1,256 @@
+"""Deterministic rendering. No model involvement.
+
+This is where figures and quotations enter the report, and it is the reason
+numeric hallucination and misquotation are structurally impossible rather than
+detected after the fact:
+
+- A claim's text contains ``{{f_0142}}``, never a number. The value is looked
+  up in the fact store here. A placeholder that does not resolve raises rather
+  than printing.
+- A citation is a complaint ID and a character range. The quotation is sliced
+  out of the stored text here. The model never handles the words it quotes, so
+  it cannot alter them.
+
+Rendering runs after the graph, against verified state, so it is outside the
+reach of any revision loop. The one stage that must never vary is the one that
+substitutes real figures into prose.
+"""
+
+from __future__ import annotations
+
+import re
+from datetime import UTC, datetime
+
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
+
+from complaints_intelligence.config import PACKAGE_ROOT
+from complaints_intelligence.domain.complaint import ComplaintEnvelope
+from complaints_intelligence.domain.finding import Citation, Finding, Remediation
+from complaints_intelligence.domain.report import Report
+from complaints_intelligence.errors import ProvenanceError
+from complaints_intelligence.logging import get_logger
+from complaints_intelligence.store.protocols import ComplaintRepository, FactStore
+from complaints_intelligence.synth.taxonomy import display_name
+
+log = get_logger(__name__)
+
+_TEMPLATE_DIR = PACKAGE_ROOT / "render" / "templates"
+
+_PLACEHOLDER_RE = re.compile(r"\{\{(f_\d{4})\}\}")
+
+#: Quotations longer than this are truncated in the rendered report. The full
+#: span remains in the report object, so the drill-down is unaffected.
+_MAX_QUOTE_CHARS = 220
+
+
+def resolve_text(text: str, facts: FactStore, *, strict: bool = True) -> str:
+    """Substitute fact placeholders with their stored values.
+
+    ``strict`` follows the critic's verdict, and the two cases are genuinely
+    different:
+
+    - **Verification passed.** Every reference was checked moments ago, so an
+      unresolvable ID means the fact store changed under the run. That must
+      stop the report rather than leave a gap in it.
+    - **Verification failed.** The report is already marked unpublishable, and
+      the unresolved placeholder is the *evidence* of what went wrong. Raising
+      here would destroy the artefact a reviewer needs in order to see why the
+      run failed. The placeholder is left visible — and because it is left
+      visible rather than substituted, no reader can mistake it for a figure.
+    """
+
+    def substitute(match: re.Match[str]) -> str:
+        fact_id = match.group(1)
+        try:
+            return facts.get_fact(fact_id).render()
+        except ProvenanceError:
+            if not strict:
+                return match.group(0)
+            msg = (
+                f"fact {fact_id!r} did not resolve at render time although it "
+                f"passed verification; the fact store has changed mid-run"
+            )
+            raise ProvenanceError(msg) from None
+
+    return _PLACEHOLDER_RE.sub(substitute, text)
+
+
+def resolve_quote(
+    citation: Citation, complaints: ComplaintRepository
+) -> tuple[str, ComplaintEnvelope]:
+    """Pull the quoted span out of the stored complaint text."""
+    complaint = complaints.get_complaint(citation.complaint_id)
+    end = min(citation.end, len(complaint.text))
+    quote = complaint.text[citation.start : end].strip()
+    if len(quote) > _MAX_QUOTE_CHARS:
+        quote = quote[: _MAX_QUOTE_CHARS - 1].rstrip() + "…"
+    return quote, complaint
+
+
+class RenderedCitation:
+    """A citation with its quote and channel resolved, ready for templating."""
+
+    def __init__(self, citation: Citation, complaints: ComplaintRepository) -> None:
+        quote, complaint = resolve_quote(citation, complaints)
+        self.complaint_id = citation.complaint_id
+        self.start = citation.start
+        self.end = citation.end
+        self.quote = quote
+        self.channel = complaint.channel.value
+        self.week = complaint.week
+
+
+class RenderedClaim:
+    """A claim with its figures substituted and citations resolved."""
+
+    def __init__(
+        self,
+        text: str,
+        facts: FactStore,
+        complaints: ComplaintRepository,
+        *,
+        citations: tuple[Citation, ...],
+        requires_confirmation: bool,
+        strict: bool,
+    ) -> None:
+        self.text = resolve_text(text, facts, strict=strict)
+        self.requires_confirmation = requires_confirmation
+        self.citations = [
+            RenderedCitation(c, complaints)
+            for c in citations
+            if _resolvable(c, complaints)
+        ]
+
+
+def _resolvable(citation: Citation, complaints: ComplaintRepository) -> bool:
+    """Whether a citation can be quoted at all.
+
+    Only reached on a report that already failed verification — a passing
+    report has had every citation checked. Skipping the unquotable ones keeps
+    the failed draft readable so a reviewer can see what else went wrong.
+    """
+    try:
+        complaint = complaints.get_complaint(citation.complaint_id)
+    except KeyError:
+        return False
+    return citation.start < len(complaint.text)
+
+
+class RenderedFinding:
+    """A finding ready for templating."""
+
+    def __init__(
+        self,
+        finding: Finding,
+        facts: FactStore,
+        complaints: ComplaintRepository,
+        *,
+        strict: bool = True,
+    ) -> None:
+        self.finding_id = finding.finding_id
+        self.kind = finding.kind.value
+        self.headline = resolve_text(finding.headline, facts, strict=strict)
+        self.category = finding.category
+        self.category_display = (
+            display_name(finding.category) if finding.category else None
+        )
+        self.theme_id = finding.theme_id
+        self.claims = [
+            RenderedClaim(
+                claim.text,
+                facts,
+                complaints,
+                citations=claim.citations,
+                requires_confirmation=claim.requires_confirmation,
+                strict=strict,
+            )
+            for claim in finding.claims
+        ]
+
+    @property
+    def evidenced_claims(self) -> list[RenderedClaim]:
+        return [c for c in self.claims if not c.requires_confirmation]
+
+    @property
+    def hypotheses(self) -> list[RenderedClaim]:
+        return [c for c in self.claims if c.requires_confirmation]
+
+
+class RenderedRemediation:
+    """A remediation ready for templating."""
+
+    def __init__(
+        self,
+        remediation: Remediation,
+        facts: FactStore,
+        complaints: ComplaintRepository,
+        *,
+        strict: bool = True,
+    ) -> None:
+        self.finding_id = remediation.finding_id
+        self.recommendation = resolve_text(
+            remediation.recommendation, facts, strict=strict
+        )
+        self.suggested_owner = remediation.suggested_owner
+        self.citations = [
+            RenderedCitation(c, complaints)
+            for c in remediation.citations
+            if _resolvable(c, complaints)
+        ]
+        # Precedents that did not transfer are kept and shown. A report that
+        # says what it ruled out, and why, is auditable; one that shows only
+        # what supported its conclusion is advocacy.
+        self.transferring = [p for p in remediation.precedents if p.transfers]
+        self.rejected = [p for p in remediation.precedents if not p.transfers]
+
+
+def render_markdown(
+    report: Report,
+    *,
+    facts: FactStore,
+    complaints: ComplaintRepository,
+) -> str:
+    """Render the report object to Markdown."""
+    environment = Environment(
+        loader=FileSystemLoader(_TEMPLATE_DIR),
+        undefined=StrictUndefined,
+        autoescape=False,  # noqa: S701 - Markdown output, not HTML
+        trim_blocks=True,
+        lstrip_blocks=True,
+        keep_trailing_newline=True,
+    )
+    template = environment.get_template("report.md.j2")
+
+    # A verified report must resolve completely or stop. An unverified one is
+    # already marked unpublishable, and rendering it — placeholders and all —
+    # is what lets a reviewer see why it failed.
+    strict = report.critic.passed
+
+    output: str = template.render(
+        report=report,
+        drivers=[
+            RenderedFinding(f, facts, complaints, strict=strict) for f in report.drivers
+        ],
+        emerging=[
+            RenderedFinding(f, facts, complaints, strict=strict)
+            for f in report.emerging
+        ],
+        remediations=[
+            RenderedRemediation(r, facts, complaints, strict=strict)
+            for r in report.remediations
+        ],
+        adjudications=report.adjudications,
+        generated_at=report.generated_at.strftime("%Y-%m-%d %H:%M UTC"),
+    )
+    log.info(
+        "report_rendered",
+        run_id=report.run_id,
+        chars=len(output),
+        strict=strict,
+    )
+    return output
+
+
+def utc_now() -> datetime:
+    """Current UTC time. One place, so tests can patch it."""
+    return datetime.now(UTC)
