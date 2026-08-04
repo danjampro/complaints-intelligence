@@ -85,8 +85,8 @@ These constrain every implementation decision and are the point of the exercise.
 
 - Prefer the simple thing. This is a demonstration of approach, not a production
   system. Depth in the agentic loop matters more than breadth across stages.
-- Record design decisions as ADRs in `docs/design/00-adr/` — including the
-  alternatives rejected.
+- Record design decisions in the *Key decisions* table of
+  `docs/design/02-architecture.md` — including the alternatives rejected.
 - Don't add dependencies without a reason in the commit message.
 - Keep synthetic fixtures small enough that a human can read them and follow what
   the pipeline is doing.

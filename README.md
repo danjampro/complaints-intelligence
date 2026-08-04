@@ -13,8 +13,9 @@ The full solution design is in [`docs/design/`](docs/design/):
 | 3 — Code | this package, implementing **section 8** of the architecture |
 | 4 — Evaluation | [`04-evaluation.md`](docs/design/04-evaluation.md) |
 
-Decisions, including the alternatives rejected, are recorded as ADRs in
-[`docs/design/00-adr/`](docs/design/00-adr/).
+Decisions, including the alternatives rejected, are recorded in the *Key
+decisions* section of
+[`02-architecture.md`](docs/design/02-architecture.md#key-decisions).
 
 **All data here is synthetic.** Nothing resembles any real firm's systems,
 taxonomies or complaints.
@@ -69,8 +70,7 @@ by ID and character offset. Quotations are sliced out of the store at render
 time, so the model never handles the words it quotes.
 
 Numeric hallucination and misquotation are therefore **structurally
-impossible** rather than detected afterwards. See
-[ADR-0007](docs/design/00-adr/0007-facts-before-generation.md).
+impossible** rather than detected afterwards.
 
 ---
 

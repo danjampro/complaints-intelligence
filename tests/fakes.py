@@ -185,6 +185,9 @@ class ScriptedLLM:
         )
 
     def _remediate(self, rendered: str) -> RemediateOutput:
+        # Precedents are read from the resolution half of each pair, citations
+        # from the complaint half — which is where the offsets point, and the
+        # reason the complaint is in the prompt at all.
         ids = _RESOLUTION_ID_RE.findall(rendered)
         return RemediateOutput(
             recommendation=(
@@ -200,7 +203,7 @@ class ScriptedLLM:
                 )
                 for i in ids[:3]
             ],
-            citations=[],
+            citations=self._citations(rendered, 2),
             fact_refs=[],
             suggested_owner="Payments engineering",
         )

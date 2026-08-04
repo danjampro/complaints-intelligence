@@ -58,12 +58,12 @@ def test_every_prompt_that_takes_evidence_uses_the_choke_point(
     source_root: Path,
 ):
     """A node building an evidence block must use ``render_complaints`` or
-    ``render_resolutions``, not assemble one itself."""
+    ``render_precedents``, not assemble one itself."""
     for path in _node_sources(source_root):
         source = path.read_text(encoding="utf-8")
         if "evidence_block=" not in source:
             continue
-        assert "render_complaints(" in source or "render_resolutions(" in source, (
+        assert "render_complaints(" in source or "render_precedents(" in source, (
             f"{path.name} builds an evidence block without the choke point"
         )
 

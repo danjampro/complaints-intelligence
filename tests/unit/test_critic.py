@@ -77,10 +77,64 @@ class TestNoLiteralNumbers:
         finding = make_finding("Volumes reached one hundred and forty-two cases.")
         assert not checks.check_no_literal_numbers([finding]).passed
 
-    @pytest.mark.parametrize("word", ["double", "half", "dozen", "quarter"])
-    def test_fails_on_quantity_words(self, word: str):
+    @pytest.mark.parametrize("word", ["half", "dozen", "quarter", "hundred", "ninety"])
+    def test_fails_on_scale_words(self, word: str):
         assert not checks.check_no_literal_numbers(
-            [make_finding(f"Charges were {word} what customers expected.")]
+            [make_finding(f"Charges were a {word} of what customers expected.")]
+        ).passed
+
+    @pytest.mark.parametrize("word", ["two", "twelve", "fifteen"])
+    def test_a_small_cardinal_counting_a_plural_noun_fails(self, word: str):
+        assert not checks.check_no_literal_numbers(
+            [make_finding(f"We received {word} complaints about the charge.")]
+        ).passed
+
+    @pytest.mark.parametrize(
+        "sentence",
+        [
+            "One customer described being charged twice for a single purchase.",
+            "Another customer said the transfer never arrived.",
+            "In one case the payment was reversed without notice.",
+        ],
+    )
+    def test_a_small_cardinal_used_as_a_determiner_is_allowed(self, sentence: str):
+        """Ordinary English, not a figure.
+
+        Flagging these costs a revision round and pushes the prose towards a
+        stilted register, which is the opposite of what the report is for.
+        """
+        assert checks.check_no_literal_numbers([make_finding(sentence)]).passed
+
+    def test_a_written_out_large_number_is_still_caught(self):
+        """The failure mode the rule exists for, after the tiering."""
+        assert not checks.check_no_literal_numbers(
+            [make_finding("Volumes reached one hundred and forty-two this week.")]
+        ).passed
+
+    @pytest.mark.parametrize("word", ["double", "triple"])
+    def test_descriptive_multiplier_words_are_allowed(self, word: str):
+        """ "A double debit" names the fault; it is not a quantity.
+
+        Flagging these forced the report to describe the problem in worse
+        English than the customers used.
+        """
+        assert checks.check_no_literal_numbers(
+            [make_finding(f"Customers describe a {word} debit on each purchase.")]
+        ).passed
+
+    def test_a_theme_identifier_is_not_a_figure(self):
+        """``CT-007`` is a reference, not a number.
+
+        Without this, a finding about a theme fails on the digits in its own
+        subject.
+        """
+        assert checks.check_no_literal_numbers(
+            [make_finding("Theme CT-007 concerns duplicated savings transfers.")]
+        ).passed
+
+    def test_a_complaint_identifier_is_not_a_figure(self):
+        assert checks.check_no_literal_numbers(
+            [make_finding("As set out in CMP-2026W31-0541, transfers repeated.")]
         ).passed
 
 
@@ -108,6 +162,20 @@ class TestCitations:
         """The fact store already supports it; a complaint would add nothing."""
         finding = make_finding("{{f_0001}}")
         assert checks.check_citations_present([finding], THRESHOLDS).passed
+
+    def test_a_hypothesis_needs_no_citation(self):
+        """A hypothesis is a step beyond what the evidence shows.
+
+        Requiring evidence for it makes the mechanism unusable, and an
+        unusable hypothesis field pushes causal speculation back into the
+        claims — the outcome the design exists to prevent.
+        """
+        finding = make_finding(
+            "The rise may follow a change to the payments gateway.",
+            requires_confirmation=True,
+        )
+        assert checks.check_citations_present([finding], THRESHOLDS).passed
+        assert checks.check_no_causal_language([finding]).passed
 
     def test_offsets_beyond_the_text_fail(self, store: DuckDBStore):
         first = store.exemplars(query_text="payment", week="2026-W31", limit=1)[0]
@@ -175,27 +243,6 @@ class TestPii:
         ).passed
 
 
-class TestReadability:
-    def test_plain_prose_passes(self):
-        finding = make_finding(
-            "Customers say their payments did not go through. Many were charged "
-            "a fee. They want the money back.",
-            headline="Payments did not go through.",
-        )
-        assert checks.check_reading_grade([finding], THRESHOLDS).passed
-
-    def test_dense_prose_fails(self):
-        finding = make_finding(
-            "Notwithstanding the aforementioned considerations regarding "
-            "operational infrastructure, the multifaceted nature of the "
-            "reconciliation discrepancies necessitates comprehensive "
-            "investigation of interdependent transactional subsystems and "
-            "their concomitant authorisation methodologies.",
-            headline="Reconciliation discrepancies necessitate investigation.",
-        )
-        assert not checks.check_reading_grade([finding], THRESHOLDS).passed
-
-
 class TestAcronyms:
     def test_known_acronyms_pass(self):
         finding = make_finding("The FCA and FOS were both notified.")
@@ -209,17 +256,7 @@ class TestAcronyms:
         finding = make_finding("The Payment Exception Queue (PXQ) was reviewed.")
         assert checks.check_no_unexplained_acronyms([finding]).passed
 
-
-class TestFleschKincaid:
-    def test_simple_text_scores_low(self):
-        assert checks.flesch_kincaid_grade("The cat sat on the mat. It was warm.") < 5
-
-    def test_complex_text_scores_high(self):
-        text = (
-            "The implementation of comprehensive regulatory frameworks "
-            "necessitates considerable organisational transformation."
-        )
-        assert checks.flesch_kincaid_grade(text) > 14
-
-    def test_empty_text_is_zero(self):
-        assert checks.flesch_kincaid_grade("") == 0.0
+    def test_a_complaint_identifier_is_not_an_acronym(self):
+        """The ``CMP`` prefix of an identifier is not jargon to expand."""
+        finding = make_finding("Customers said so in CMP-2026W31-0541.")
+        assert checks.check_no_unexplained_acronyms([finding]).passed

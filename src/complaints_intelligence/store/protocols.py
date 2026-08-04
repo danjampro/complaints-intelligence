@@ -19,7 +19,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
-from complaints_intelligence.domain.complaint import ComplaintEnvelope, ResolutionNote
+from complaints_intelligence.domain.complaint import (
+    ComplaintEnvelope,
+    Precedent,
+    ResolutionNote,
+)
 from complaints_intelligence.domain.fact import Fact
 
 
@@ -64,20 +68,27 @@ class ComplaintRepository(Protocol):
 
 
 @runtime_checkable
-class ResolutionRepository(Protocol):
-    """Read access to resolution notes on closed complaints.
+class PrecedentRepository(Protocol):
+    """Read access to closed complaints and how they were resolved.
 
-    The sole knowledge source for remediation recommendations.
+    The sole knowledge source for remediation recommendations. The unit is
+    the pair, not the note: what a precedent is worth depends on the problem
+    it was a response to, which is the complaint.
     """
 
-    def search_resolutions(
+    def search_precedents(
         self,
         *,
         query_text: str,
         category: str | None = None,
         limit: int = 6,
-    ) -> tuple[ResolutionNote, ...]:
-        """Retrieve resolution notes for comparable closed complaints."""
+    ) -> tuple[Precedent, ...]:
+        """Retrieve comparable closed complaints with their resolution notes.
+
+        Matched complaint-to-complaint in the single embedding space, with the
+        candidate set restricted to closed complaints carrying a note before
+        ranking rather than after.
+        """
         ...
 
     def get_resolution(self, complaint_id: str) -> ResolutionNote | None:

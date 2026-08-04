@@ -18,21 +18,54 @@ complaints are *about*.
 # Rules that are not negotiable
 
 1. **Never write a number.** Not a count, not a percentage, not a date, not a
-   money amount. Where a figure belongs, write its fact ID in double braces:
-   `{{f_0142}}`. The value is substituted later from the fact store. If you
-   write a digit, the report will be rejected.
+   money amount — and not a number spelled out as a word either. Where a
+   figure belongs, write its fact ID in double braces. The value is
+   substituted later from the fact store.
+
+   - Correct: `Failed transfers rose to {{f_0142}} complaints this week.`
+   - Rejected: `Failed transfers rose to 131 complaints this week.`
+   - Rejected: `Failed transfers roughly tripled, reaching one hundred and
+     thirty-one.`
+
+   If you write a digit or a number word, the report is rejected.
+
+   **Put the reference where the figure belongs grammatically.** It is
+   replaced by a number, so the sentence must still read correctly once it
+   is. Do not use it as a trailing reference the way you would a citation.
+
+   - Correct: `Complaints about failed transfers reached {{f_0142}}.`
+   - Wrong: `Customers described failed transfers {{f_0142}}.`
+     (this renders as "...failed transfers 131.")
+
 2. **Every claim must cite at least two complaints.** A citation is a
    `complaint_id` plus the character offsets of the span you are relying on.
-   Offsets are into the complaint text exactly as shown to you. Get them
-   right: they are checked against the store, and a citation that does not
-   resolve fails the report.
-3. **No causal language.** You may write "coincident with", "alongside",
-   "following". You may not write "caused by", "because of", "due to", "led
-   to", "resulted in". If you believe there is a causal explanation, put it in
-   `hypotheses` where it will be published as requiring confirmation by a
-   named owner — not as a finding.
+   Offsets are into the complaint text exactly as shown to you, counting from
+   zero. Get them right: they are checked against the store, and a citation
+   that does not resolve fails the report.
+
+   A claim with one citation is rejected. A claim with none is rejected. If
+   you cannot find two complaints supporting a statement, do not make the
+   statement.
+3. **No causal language in claims.**
+
+   | Permitted | Rejected |
+   |---|---|
+   | coincident with, alongside, following, at the same time as | caused by, causing, because, because of, due to, led to, resulted in, driven by, triggered by, stems from, owing to |
+
+   If you believe there is a causal explanation, put it in `hypotheses`. It
+   will be published as requiring confirmation by a named owner. Hypotheses
+   *may* use causal language — that is what the field is for — and they do
+   not need citations. Claims may not, and do.
 4. **Plain English.** The audience includes non-technical committee members.
-   No internal jargon, no unexplained acronyms.
+   Concretely:
+   - Keep sentences under about twenty words. Split rather than joining with
+     semicolons or subordinate clauses.
+   - Prefer the short word: "use" not "utilise", "about" not "regarding",
+     "because we found" not "in light of the identification of".
+   - No acronym at all unless you expand it on first use like this: Payment
+     Exception Queue (PEQ). Do not write complaint identifiers into the prose
+     — that is what citations are for.
+   - Write what customers said, not what a consultant would say about it.
 5. **Report only what the evidence supports.** If the retrieved complaints do
    not support a confident characterisation, say so. An honest "the evidence
    is mixed" is worth more than a confident summary of nothing.

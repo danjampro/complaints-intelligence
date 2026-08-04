@@ -4,10 +4,15 @@
 -- reconcile. In production these are dbt models over BigQuery; here they are
 -- DuckDB views over Parquet.
 --
--- Dialect deltas against BigQuery, recorded in ADR-0009:
+-- Dialect deltas against BigQuery:
 --   * DuckDB `array_cosine_similarity` stands in for BigQuery `VECTOR_SEARCH`.
 --     BigQuery returns distance and takes a top-k argument; DuckDB returns
 --     similarity and needs an explicit ORDER BY / LIMIT.
+--   * BigQuery restricts a vector search to a subset by searching a filtered
+--     embedding table — `VECTOR_SEARCH(v_precedent_embeddings, ...)`. Here the
+--     equivalent is joining the vector table to `v_precedent` inside the
+--     query, so the restriction still applies before ranking rather than
+--     after.
 --   * BigQuery would partition these tables by `week` and cluster by
 --     `category`. DuckDB has no equivalent and does not need one at this size.
 --   * `LIST` / `STRUCT` here would be `ARRAY` / `STRUCT` in BigQuery.
@@ -27,9 +32,7 @@ SELECT
     week,
     category,
     taxonomy_version,
-    COUNT(*)                                   AS complaint_count,
-    COUNT(*) FILTER (WHERE detriment_flag)     AS detriment_count,
-    COUNT(*) FILTER (WHERE vulnerability_flag) AS vulnerability_count
+    COUNT(*) AS complaint_count
 FROM complaints
 WHERE routing = 'assign'
 GROUP BY week, category, taxonomy_version;
@@ -122,17 +125,27 @@ FROM (
 )
 GROUP BY week, candidate_theme_id;
 
--- Resolution notes joined to their complaint, for remediation retrieval.
-CREATE OR REPLACE VIEW v_resolution_candidates AS
+-- The precedent pool: closed complaints that carry a resolution note.
+--
+-- Precedent retrieval is complaint-to-complaint. The agent matches a finding
+-- against the complaint text of closed cases and reaches the note by this
+-- join, rather than searching the notes directly — a symmetric comparison
+-- against text of the same kind, which is why one embedding space serves it.
+--
+-- The restriction lives in the view, applied before ranking, rather than as a
+-- filter over search results. Filtering afterwards degrades recall silently
+-- whenever the nearest complaints happen to be mostly open.
+--
+-- `c.*` keeps every complaint column under its own name so the row
+-- reconstructs into a `ComplaintEnvelope` unchanged. `r.category` is dropped
+-- because it duplicates `c.category`.
+CREATE OR REPLACE VIEW v_precedent AS
 SELECT
-    r.complaint_id,
-    r.category,
+    c.*,
     r.outcome,
     r.redress_gbp,
     r.days_to_close,
-    r.text          AS resolution_text,
-    c.channel,
-    c.week,
-    c.text          AS complaint_text
-FROM resolutions r
-JOIN complaints c USING (complaint_id);
+    r.text AS resolution_text
+FROM complaints c
+JOIN resolutions r USING (complaint_id)
+WHERE c.status = 'closed';

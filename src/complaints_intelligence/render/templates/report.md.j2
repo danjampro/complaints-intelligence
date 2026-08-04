@@ -78,7 +78,7 @@ _No candidate theme was assessed as a real emerging signal this week._
 | Theme | Verdict | Reasoning |
 |---|---|---|
 {% for item in adjudications %}
-| `{{ item.theme_id }}` | **{{ item.verdict.value.replace('_', ' ') }}**{% if item.duplicate_of_category %} ({{ item.duplicate_of_category }}){% endif %} | {{ item.rationale | replace('\n', ' ') }} |
+| `{{ item.theme_id }}` | **{{ item.verdict }}**{% if item.duplicate_of_category %} ({{ item.duplicate_of_category }}){% endif %} | {{ item.rationale | replace('\n', ' ') }} |
 {% endfor %}
 
 Every candidate the metrics layer carried appears above, including those

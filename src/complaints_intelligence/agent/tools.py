@@ -7,7 +7,7 @@ each taking validated arguments:
   so an unlisted view is a type error at the call site and a ``ToolContractError``
   at runtime. There is no free-form SQL anywhere in the reachable graph.
 - ``get_exemplars`` — retrieve complaints by similarity, scoped to a week.
-- ``get_resolutions`` — retrieve resolution notes from closed complaints.
+- ``get_precedent`` — retrieve closed complaints with their resolution notes.
 
 What the agent cannot do through this surface: compute a statistic, write
 anything, modify the taxonomy, publish, or reach the network. Those are absent
@@ -23,7 +23,7 @@ from __future__ import annotations
 from typing import Any, Literal, get_args
 
 from complaints_intelligence.agent.budgets import BudgetLedger
-from complaints_intelligence.domain.complaint import ComplaintEnvelope, ResolutionNote
+from complaints_intelligence.domain.complaint import ComplaintEnvelope, Precedent
 from complaints_intelligence.domain.trace import ToolCall
 from complaints_intelligence.errors import ToolContractError
 from complaints_intelligence.logging import get_logger
@@ -167,22 +167,27 @@ class ToolBelt:
         )
         return results
 
-    def get_resolutions(
+    def get_precedent(
         self,
         *,
         query_text: str,
         category: str | None = None,
         limit: int = 6,
-    ) -> tuple[ResolutionNote, ...]:
-        """Retrieve resolution notes from comparable closed complaints."""
-        self._ledger.spend_tool(self._node, "get_resolutions")
-        capped = min(limit, self._ledger.config.max_resolutions_per_finding)
+    ) -> tuple[Precedent, ...]:
+        """Retrieve comparable closed complaints with their resolution notes.
 
-        results = self._store.search_resolutions(
+        Passing ``category=None`` is the remediation node's widened second
+        pass: a precedent from a neighbouring category may still transfer, and
+        the report records which pass produced it.
+        """
+        self._ledger.spend_tool(self._node, "get_precedent")
+        capped = min(limit, self._ledger.config.max_precedents_per_finding)
+
+        results = self._store.search_precedents(
             query_text=query_text, category=category, limit=capped
         )
         self._record(
-            "get_resolutions",
+            "get_precedent",
             {
                 "category": category,
                 "limit": capped,

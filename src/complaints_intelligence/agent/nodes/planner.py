@@ -78,6 +78,7 @@ def plan_node(state: RunState, context: RunContext) -> dict[str, Any]:
             baseline_week=brief.baseline_week,
             taxonomy_version=brief.taxonomy_version,
             max_investigations=str(context.settings.budget.max_investigations),
+            max_adjudications=str(context.settings.budget.max_adjudications),
             headline_block=format_headlines(brief, facts),
             flagged_block=format_flagged(brief.flagged_categories, facts),
             sentiment_block=format_sentiment(brief.sentiment_signals, facts),

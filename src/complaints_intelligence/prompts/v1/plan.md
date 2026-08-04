@@ -12,8 +12,22 @@ computed by ordinary code before you were invoked.
 # Your task
 
 Decide which of the flagged categories and candidate themes are worth
-investigating this week, and in what order. You have a budget of at most
-{max_investigations} investigations.
+investigating this week, and in what order.
+
+**There are two separate budgets, and they do not compete.**
+
+- Up to **{max_investigations}** flagged categories (`kind: "category"`).
+- Up to **{max_adjudications}** candidate themes (`kind: "candidate_theme"`).
+
+Spending fewer categories does not buy you more themes, and vice versa. Fill
+each budget on its own merits.
+
+**Adjudicate every candidate theme the brief carried, up to the budget.** A
+category missed this week reappears next week in the trend table; an emerging
+theme nobody examined does not. Rejecting a theme as noise or as an artefact
+is a useful, reportable outcome — it is not a wasted investigation, and it is
+the only way a reader can tell "we looked and it was nothing" from "we never
+looked".
 
 # Rules
 

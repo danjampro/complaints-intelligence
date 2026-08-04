@@ -191,10 +191,6 @@ def _assigned_enrichment(
         margin=float(np.clip(rng.beta(5.0, 3.0) * confidence, 0.0, 1.0)),
         novelty=float(np.clip(rng.beta(2.0, 8.0), 0.0, 1.0)),
         sentiment=sentiment,
-        vulnerability_flag=bool(
-            rng.random() < (0.55 if category == "vulnerable_customer_support" else 0.06)
-        ),
-        detriment_flag=bool(rng.random() < 0.35),
         evidence_spans=(span,),
         routing=RoutingDecision.ASSIGN,
     )
@@ -232,8 +228,6 @@ def _abstained_enrichment(
         margin=margin,
         novelty=float(np.clip(rng.beta(8.0, 2.0), 0.0, 1.0)),
         sentiment=sentiment,
-        vulnerability_flag=bool(rng.random() < 0.08),
-        detriment_flag=bool(rng.random() < 0.30),
         evidence_spans=(span,),
         routing=RoutingDecision.ABSTAIN,
         candidate_theme_id=theme_id,

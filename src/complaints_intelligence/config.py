@@ -46,8 +46,8 @@ class EmbeddingConfig(BaseModel):
     """TF-IDF + truncated SVD, standing in for a hosted embedding model.
 
     Local, deterministic and dependency-light, which is what invariant 5
-    requires. See ADR-0010 for why a real embedding model is the production
-    choice and what is lost here.
+    requires. ``retrieval.embedder`` records what is lost against a real
+    embedding model, which is the production choice.
     """
 
     n_components: int = 128
@@ -99,7 +99,7 @@ class BudgetConfig(BaseModel):
     max_investigations: int = 5
     max_adjudications: int = 3
     max_exemplars_per_finding: int = 6
-    max_resolutions_per_finding: int = 6
+    max_precedents_per_finding: int = 6
 
 
 class CriticThresholds(BaseModel):
@@ -107,9 +107,6 @@ class CriticThresholds(BaseModel):
 
     #: Every qualitative claim needs at least this many complaint citations.
     min_citations_per_claim: int = 2
-    #: Flesch-Kincaid grade ceiling. The audience includes non-technical
-    #: committee readers.
-    max_reading_grade: float = 14.0
 
 
 class LLMConfig(BaseModel):
@@ -123,9 +120,29 @@ class LLMConfig(BaseModel):
     """
 
     mode: Literal["replay", "live", "record"] = "replay"
-    model: str = "gemini-2.5-flash"
+    #: Pinned by name, deliberately not a moving alias such as
+    #: ``gemini-flash-latest``. The model identifier is part of what makes a
+    #: published report reconstructable, and an alias that silently points
+    #: somewhere new eighteen months later defeats that.
+    #:
+    #: A lite model is sufficient here and is a deliberate choice rather than
+    #: a cost compromise. The graph has already done the decomposition — the
+    #: evidence is retrieved, the candidate fact IDs are chosen, the schema is
+    #: fixed — so each call is constrained extraction against explicit rules
+    #: rather than open-ended reasoning. Correctness is enforced by the critic
+    #: and by the fact store, not by model capability, which is what makes the
+    #: smaller model safe to use.
+    model: str = "gemini-3.5-flash-lite"
     temperature: float = 0.0
-    max_output_tokens: int = 4096
+    #: Generous, because a truncated response is not a partial finding — it is
+    #: invalid JSON, and the whole call is wasted.
+    max_output_tokens: int = 16384
+    #: Reasoning effort. Deliberately low: these prompts are structured
+    #: extraction against explicit rules, with the evidence already retrieved
+    #: and the fact IDs already chosen. At the default level the model spent
+    #: ~15k tokens thinking and then truncated its own JSON, which is cost and
+    #: latency spent on a problem the graph has already decomposed.
+    thinking_level: Literal["low", "medium", "high"] = "low"
     prompt_version: str = "v1"
 
 

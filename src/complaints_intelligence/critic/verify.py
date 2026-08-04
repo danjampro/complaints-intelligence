@@ -43,7 +43,6 @@ def verify(
             list(rendered_texts)
             or [(f.finding_id, c.text) for f in findings for c in f.claims]
         ),
-        checks.check_reading_grade(findings, thresholds),
         checks.check_no_unexplained_acronyms(findings),
     )
 

@@ -8,8 +8,8 @@ invariant 5 requires.
 It is a stand-in, and worth being precise about what is lost. LSI captures
 term co-occurrence, not meaning: it will not connect "double debit" to
 "charged twice" unless those terms co-occur in the corpus. A hosted embedding
-model would. See ADR-0010 for the production choice and the migration path —
-the protocol below is the whole of what has to change.
+model would, and is the production choice. The protocol below is the whole of
+what has to change to migrate.
 
 The index is fitted on open rather than persisted. The resolution-notes index
 is described in the architecture as derived and rebuildable; rebuilding it on

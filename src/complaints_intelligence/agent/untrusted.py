@@ -28,7 +28,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from complaints_intelligence.domain.complaint import ComplaintEnvelope, ResolutionNote
+from complaints_intelligence.domain.complaint import ComplaintEnvelope, Precedent
 
 #: Fence used to delimit untrusted content. Long and distinctive so that
 #: neutralising lookalikes in the payload does not mangle ordinary text.
@@ -103,6 +103,19 @@ class UntrustedItem:
     metadata: str = ""
 
 
+def _block(item: UntrustedItem, label: str) -> str:
+    """One fenced block: identifier and metadata outside, text inside.
+
+    Shared by every renderer below so they cannot drift apart. The structure
+    is parsed by the adversarial suite, which reads prompts the way a reader
+    would rather than trusting the function that produced them — a second
+    block shape would be a second thing to audit.
+    """
+    header = f"[{label} id={item.identifier}"
+    header += f" {item.metadata}]" if item.metadata else "]"
+    return f"{header}\n{FENCE}\n{neutralise(item.text)}\n{FENCE_END}"
+
+
 def render_untrusted(
     items: Sequence[UntrustedItem],
     *,
@@ -118,12 +131,7 @@ def render_untrusted(
     if not items:
         return f"{_PREAMBLE}\n\n(No {label} evidence was retrieved.)"
 
-    blocks = []
-    for item in items:
-        header = f"[{label} id={item.identifier}"
-        header += f" {item.metadata}]" if item.metadata else "]"
-        blocks.append(f"{header}\n{FENCE}\n{neutralise(item.text)}\n{FENCE_END}")
-    return f"{_PREAMBLE}\n\n" + "\n\n".join(blocks)
+    return f"{_PREAMBLE}\n\n" + "\n\n".join(_block(item, label) for item in items)
 
 
 def render_complaints(complaints: Sequence[ComplaintEnvelope]) -> str:
@@ -145,27 +153,50 @@ def render_complaints(complaints: Sequence[ComplaintEnvelope]) -> str:
     )
 
 
-def render_resolutions(notes: Sequence[ResolutionNote]) -> str:
-    """Render retrieved resolution notes as an evidence block.
+def render_precedents(precedents: Sequence[Precedent]) -> str:
+    """Render retrieved precedents as paired evidence blocks.
 
-    Resolution notes are written by case handlers rather than customers, so
-    they are lower risk — but they are still free text derived from a
-    customer-facing process, and treating them as trusted would be an
-    assumption nobody has verified. They go through the same fence.
+    Each precedent becomes two blocks under one identifier: what the customer
+    wrote, then what the handler recorded. Both are fenced. Resolution notes
+    are written by case handlers rather than customers and so are lower risk,
+    but they are still free text produced by a customer-facing process, and
+    treating them as trusted would be an assumption nobody has verified.
 
-    Outcome and redress are emitted outside the block because they are
-    structured fields from the store, not prose, and the model needs them to
-    judge whether a precedent transfers.
+    The complaint is shown rather than summarised because the model is judging
+    whether a precedent *transfers*, which is a question about the problem,
+    not only about the action taken. It is also what makes the citations
+    resolvable: precedent citations are offsets into complaint text.
+
+    Outcome, redress and closure time sit outside the fence — they are
+    structured store columns, not prose, and the model needs them to weigh
+    whether the action actually worked.
     """
-    items = [
-        UntrustedItem(
-            identifier=n.complaint_id,
-            text=n.text,
-            metadata=(
-                f"outcome={n.outcome.value} redress_gbp={n.redress_gbp} "
-                f"days_to_close={n.days_to_close}"
-            ),
+    if not precedents:
+        return f"{_PREAMBLE}\n\n(No precedent evidence was retrieved.)"
+
+    blocks = []
+    for precedent in precedents:
+        note = precedent.resolution
+        blocks.append(
+            _block(
+                UntrustedItem(
+                    identifier=precedent.complaint.complaint_id,
+                    text=precedent.complaint.text,
+                ),
+                "complaint",
+            )
+            + "\n"
+            + _block(
+                UntrustedItem(
+                    identifier=note.complaint_id,
+                    text=note.text,
+                    metadata=(
+                        f"outcome={note.outcome.value} "
+                        f"redress_gbp={note.redress_gbp} "
+                        f"days_to_close={note.days_to_close}"
+                    ),
+                ),
+                "resolution",
+            )
         )
-        for n in notes
-    ]
-    return render_untrusted(items, label="resolution")
+    return f"{_PREAMBLE}\n\n" + "\n\n".join(blocks)

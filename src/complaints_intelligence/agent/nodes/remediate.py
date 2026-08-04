@@ -1,7 +1,13 @@
 """The ``remediate`` node.
 
-For each finding: retrieve resolution notes from comparable closed complaints,
-assess whether they genuinely transfer, and summarise what was done.
+For each finding: retrieve comparable closed complaints with the notes
+recording how they were resolved, assess whether that precedent genuinely
+transfers, and summarise what was done.
+
+Retrieval matches complaint against complaint and reaches the note by a join,
+so the model sees the pair — the problem and the response to it. Judging
+whether a precedent applies is a question about the problem, and a note read
+without it is a description of an action with nothing to apply it to.
 
 This node is why the design needs an agent rather than a prompt chain. The
 step is retrieve → assess relevance → refine, and the number of iterations
@@ -23,8 +29,8 @@ from typing import Any
 from complaints_intelligence.agent.nodes.common import call_model, enter, format_facts
 from complaints_intelligence.agent.schemas import RemediateOutput
 from complaints_intelligence.agent.state import RunContext, RunState
-from complaints_intelligence.agent.untrusted import render_resolutions
-from complaints_intelligence.domain.complaint import ResolutionNote
+from complaints_intelligence.agent.untrusted import render_precedents
+from complaints_intelligence.domain.complaint import Precedent
 from complaints_intelligence.domain.finding import (
     Citation,
     Finding,
@@ -51,7 +57,7 @@ def _finding_summary(finding: Finding) -> str:
 
 def _retrieve(
     context: RunContext, finding: Finding, *, scoped: bool
-) -> tuple[ResolutionNote, ...]:
+) -> tuple[Precedent, ...]:
     """Retrieve precedents, optionally scoped to the finding's category."""
     if finding.category:
         node_definition = get_node(finding.category)
@@ -59,10 +65,10 @@ def _retrieve(
     else:
         query = finding.headline
 
-    return context.tools.get_resolutions(
+    return context.tools.get_precedent(
         query_text=query,
         category=finding.category if scoped else None,
-        limit=context.settings.budget.max_resolutions_per_finding,
+        limit=context.settings.budget.max_precedents_per_finding,
     )
 
 
@@ -78,17 +84,17 @@ def remediate_node(state: RunState, context: RunContext) -> dict[str, Any]:
         )
 
         output: RemediateOutput | None = None
-        notes: tuple[ResolutionNote, ...] = ()
+        precedents: tuple[Precedent, ...] = ()
         widened = False
 
         for attempt, scoped in enumerate((True, False), start=1):
             try:
-                notes = _retrieve(context, finding, scoped=scoped)
+                precedents = _retrieve(context, finding, scoped=scoped)
             except BudgetExceededError as exc:
                 context.ledger.note(f"remediation for {finding.finding_id}: {exc}")
                 break
 
-            if not notes:
+            if not precedents:
                 continue
 
             try:
@@ -99,7 +105,7 @@ def remediate_node(state: RunState, context: RunContext) -> dict[str, Any]:
                     schema=RemediateOutput,
                     finding_block=_finding_summary(finding),
                     fact_block=format_facts(facts, fact_ids),
-                    evidence_block=render_resolutions(notes),
+                    evidence_block=render_precedents(precedents),
                 )
             except BudgetExceededError as exc:
                 context.ledger.note(f"remediation for {finding.finding_id}: {exc}")

@@ -59,9 +59,9 @@ Ground truth exists, so this is conventional supervised evaluation.
 Where κ is low, the taxonomy definition is the suspect, not the annotators —
 ambiguity between annotators is evidence the inclusion criteria need work.
 
-**Slice evaluation is mandatory, not optional.** Macro-F1 by channel, by
-product, and by vulnerability flag. A model that performs well overall and
-badly on call-centre transcripts is a Consumer Duty problem, because
+**Slice evaluation is mandatory, not optional.** Macro-F1 by channel and by
+product. A model that performs well overall and badly on call-centre
+transcripts is a Consumer Duty problem, because
 transcription noise correlates with customers who could not use digital
 channels.
 
@@ -203,7 +203,7 @@ reference whether or not it formally binds.
 |---|---|
 | Model inventory | Classifier, embedding model and LLM are each registered with version, owner and tier. |
 | Tiering | Tiered on materiality: this is customer-outcome and regulatory reporting, so high. |
-| Documentation | These design documents, the ADRs, and the run trace. |
+| Documentation | These design documents and the run trace. |
 | Independent validation | The metrics layer is testable without invoking a model — deliberately, and it is the first thing a validator will ask for. |
 | Ongoing monitoring | Section 3. |
 | Human accountability | A named SMF holder owns the report; a named reviewer publishes each one. |

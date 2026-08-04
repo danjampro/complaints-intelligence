@@ -37,7 +37,7 @@ flowchart LR
   CS[("Complaint store · BigQuery<br/>system of record<br/>open + closed w/ resolution notes")]
   I3 --> CS
 
-  E1["Enrichment · map stage<br/>distilled classifier + LLM tail<br/>category · sentiment · vulnerability<br/>detriment · evidence spans · confidence"]
+  E1["Enrichment · map stage<br/>distilled classifier + LLM tail<br/>category · sentiment<br/>evidence spans · confidence"]
   CS --> E1
 
   F{"Confidence + novelty<br/>thresholds"}
@@ -152,7 +152,7 @@ month-to-month comparability.
 ## 5 · Enrichment (map stage)
 
 Extracts a structured record per complaint: category, sentiment intensity,
-vulnerability indicators, detriment, evidence spans and confidence.
+evidence spans and confidence.
 
 A distilled encoder classifier handles the bulk; an LLM handles the
 low-confidence tail. The hybrid is cheaper, faster, deterministic, versionable
@@ -251,12 +251,12 @@ plan → investigate → adjudicate → remediate → critic ⇄ revise → rend
 | `plan` | Reads the metrics brief; allocates a bounded set of investigations by excess volume and severity. Skipped items are recorded. |
 | `investigate` | Per finding: retrieves exemplar complaints, characterises what customers are actually describing, drafts a finding with citations. |
 | `adjudicate` | Per candidate theme: real signal, noise, or ingest artefact? Checks coherence, persistence, and data-quality facts; deduplicates against existing categories. |
-| `remediate` | Retrieves resolution notes from similar closed complaints, assesses whether they genuinely transfer, and summarises what was done and what worked. Retries with different retrieval if relevance is poor. |
+| `remediate` | Vector search over similar closed complaints, joined to their resolution notes; assesses whether that precedent genuinely transfers, and summarises what was done and what worked. Retries with widened retrieval if relevance is poor. |
 | `critic` | Programmatic verification. Failures return to a bounded revise loop (max 2). |
 | `render` | Deterministic templating. No model involvement. |
 
 **Tools:** `query_metrics` (parameterised views only), `get_exemplars`,
-`get_resolutions`. No free-form SQL.
+`get_precedent`. No free-form SQL.
 
 **The critic enforces:**
 
@@ -265,7 +265,7 @@ plan → investigate → adjudicate → remediate → critic ⇄ revise → rend
 - no causal language: "coincident with" is permitted, "caused by" is not; causal
   hypotheses are emitted as requiring confirmation by a named owner
 - zero PII in output text
-- reading grade within threshold, no unexplained internal acronyms
+- no unexplained internal acronyms
 
 **What the agent cannot do:** compute any statistic; rank the top 5; modify the
 taxonomy; publish; write anywhere; reach the internet.
@@ -308,7 +308,7 @@ Terraform for infrastructure; Artifact Registry; GitHub Actions for CI.
 
 At ~5,000 complaints per week the constraint is analytical quality, not compute
 scale. GKE, streaming infrastructure and a dedicated vector database are not
-warranted and are deliberately excluded — see ADRs.
+warranted and are deliberately excluded — see *Key decisions* below.
 
 Every run emits a full trace — tool calls, arguments, facts retrieved, prompt and
 model versions — to BigQuery. This is what makes a report defensible eighteen
@@ -316,7 +316,9 @@ months later.
 
 ## Key decisions
 
-Recorded as ADRs in `docs/design/00-adr/`.
+This table is the decision record. Each row names what was chosen and what was
+considered and rejected; the reasoning is in the section above that the
+decision belongs to.
 
 | Decision | Alternatives rejected |
 |---|---|
@@ -325,5 +327,16 @@ Recorded as ADRs in `docs/design/00-adr/`.
 | BigQuery vector search | Dedicated vector database |
 | Cloud Run + Composer | GKE |
 | Constrained agent graph | Single-shot prompt; autonomous ReAct agent |
-| Remediation by resolution-note retrieval | Causal root-cause inference; change-calendar correlation |
+| Remediation by precedent retrieval | Causal root-cause inference; change-calendar correlation |
+| One embedding space over complaint text; precedent matched complaint-to-complaint and joined to its note | A second index over resolution notes; asymmetric complaint→resolution retrieval |
 | Facts computed before generation | Post-hoc numeric verification |
+| LangGraph as the graph runtime | A bespoke loop; a general agent framework |
+
+The demonstration package substitutes for three of these so that it runs
+offline with no credentials. The production choice is on the left.
+
+| Production | Substituted with, in this package |
+|---|---|
+| BigQuery | DuckDB over Parquet, behind the same repository protocols |
+| A hosted embedding model | TF-IDF + truncated SVD |
+| Live model calls | Replay of committed cassettes, recorded from the live model |

@@ -23,9 +23,8 @@ Check                         Rationale
                               correlations.
 ``no_pii``                    PII is removed before inference; this is the
                               backstop for what redaction missed.
-``reading_grade``             The audience includes non-technical committee
+``no_unexplained_acronyms``   The audience includes non-technical committee
                               members.
-``no_unexplained_acronyms``   Same reason.
 ============================  ================================================
 
 ``facts_resolve`` and ``citations_resolve`` are assertions, not metrics: they
@@ -38,21 +37,75 @@ import re
 from collections.abc import Sequence
 
 from complaints_intelligence.config import CriticThresholds
+from complaints_intelligence.domain.finding import (
+    FACT_PLACEHOLDER_RE as _FACT_PLACEHOLDER_RE,
+)
 from complaints_intelligence.domain.finding import Claim, Finding
 from complaints_intelligence.domain.report import CriticCheck
 from complaints_intelligence.store.protocols import ComplaintRepository, FactStore
 
-#: Fact references as they appear in claim text: ``{{f_0142}}``.
-FACT_PLACEHOLDER_RE = re.compile(r"\{\{(f_\d{4})\}\}")
+#: Re-exported so the critic and the renderer share one definition of what a
+#: fact reference looks like. See ``domain.finding``.
+FACT_PLACEHOLDER_RE = _FACT_PLACEHOLDER_RE
+
+#: Identifiers a claim may legitimately name: complaint IDs and theme IDs.
+#:
+#: These are *references*, not figures, and they are stripped before the
+#: digit, number-word and acronym checks run. Without this, a finding about
+#: theme ``CT-007`` fails ``no_literal_numbers`` for the digits in its own
+#: subject, and a rationale that names a complaint fails
+#: ``no_unexplained_acronyms`` on the ``CMP`` prefix — neither of which is the
+#: problem those checks exist to catch.
+_IDENTIFIER_RE = re.compile(r"\b(?:[A-Z]{2,5}-\d{4}W\d{2}-\d{4}|CT-\d{3})\b")
+
+
+def strip_references(text: str) -> str:
+    """Remove fact placeholders and identifiers, leaving prose.
+
+    What remains is what the model actually asserted in its own words, which
+    is what the prose checks should be judging.
+    """
+    return _IDENTIFIER_RE.sub("", FACT_PLACEHOLDER_RE.sub("", text))
+
 
 #: Any digit not part of a fact placeholder. Deliberately blunt: a report that
 #: needs to state a bare number has a fact missing from the metrics layer, and
 #: that is a gap to fix upstream rather than an exception to grant here.
 _BARE_DIGIT_RE = re.compile(r"\d")
 
-#: Written-out numbers. A model told not to type digits will sometimes write
-#: "one hundred and forty-two" instead, which defeats the point.
-_NUMBER_WORDS = (
+# Written-out numbers. A model told not to type digits will otherwise write
+# "one hundred and forty-two" instead, which defeats the point.
+#
+# Two tiers, because a single word list has an unacceptable false-positive
+# rate on ordinary English. "One customer noted that…" is not a figure; it is
+# how a person writes. Flagging it costs a revision round and pushes the
+# report towards stilted prose, which is the opposite of what the report is
+# for.
+
+#: Always a quantity, whatever the context.
+_SCALE_WORDS = (
+    "twenty",
+    "thirty",
+    "forty",
+    "fifty",
+    "sixty",
+    "seventy",
+    "eighty",
+    "ninety",
+    "hundred",
+    "thousand",
+    "million",
+    "dozen",
+    "half",
+    "third",
+    "quarter",
+)
+_SCALE_WORD_RE = re.compile(r"\b(" + "|".join(_SCALE_WORDS) + r")\b", re.IGNORECASE)
+
+#: Small cardinals, which are quantities only when they are counting
+#: something. Flagged when followed by a plural noun ("twelve complaints")
+#: and allowed as determiners ("one customer described").
+_SMALL_CARDINALS = (
     "zero",
     "one",
     "two",
@@ -69,25 +122,15 @@ _NUMBER_WORDS = (
     "thirteen",
     "fourteen",
     "fifteen",
-    "twenty",
-    "thirty",
-    "forty",
-    "fifty",
-    "sixty",
-    "seventy",
-    "eighty",
-    "ninety",
-    "hundred",
-    "thousand",
-    "million",
-    "dozen",
-    "half",
-    "third",
-    "quarter",
-    "double",
-    "triple",
 )
-_NUMBER_WORD_RE = re.compile(r"\b(" + "|".join(_NUMBER_WORDS) + r")\b", re.IGNORECASE)
+_COUNTING_RE = re.compile(
+    r"\b(" + "|".join(_SMALL_CARDINALS) + r")\s+(?=[a-z]+s\b)", re.IGNORECASE
+)
+
+# "double" and "triple" are deliberately absent from both tiers. In complaint
+# language they are overwhelmingly descriptive — a "double debit" is the name
+# of the fault, not a quantity — and flagging them forces the report to
+# describe the problem in worse English than the customers used.
 
 #: Causal assertions. "Coincident with" is permitted; these are not.
 _CAUSAL_RE = re.compile(
@@ -183,13 +226,14 @@ def check_no_literal_numbers(findings: Sequence[Finding]) -> CriticCheck:
     """
     offending: list[str] = []
     for finding_id, text, _ in _claim_texts(findings):
-        stripped = FACT_PLACEHOLDER_RE.sub("", text)
+        stripped = strip_references(text)
         if digits := _BARE_DIGIT_RE.findall(stripped):
             offending.append(
                 f"{finding_id}: literal digit(s) {''.join(sorted(set(digits)))} "
                 f"in claim text"
             )
-        if words := _NUMBER_WORD_RE.findall(stripped):
+        words = _SCALE_WORD_RE.findall(stripped) + _COUNTING_RE.findall(stripped)
+        if words:
             offending.append(
                 f"{finding_id}: number word(s) {sorted({w.lower() for w in words})}"
             )
@@ -219,7 +263,16 @@ def check_citations_present(
     minimum = thresholds.min_citations_per_claim
     offending: list[str] = []
     for finding_id, text, claim in _claim_texts(findings):
-        qualitative = bool(FACT_PLACEHOLDER_RE.sub("", text).strip(" .,"))
+        # Hypotheses are exempt, for the same reason they are exempt from the
+        # causal-language check: they are published explicitly as unconfirmed
+        # and requiring a named owner. A hypothesis is by nature a step beyond
+        # what the evidence shows, so demanding evidence for it would make the
+        # mechanism unusable — and an unusable hypothesis field pushes causal
+        # speculation back into the claims, which is the outcome this design
+        # exists to prevent.
+        if claim.requires_confirmation:
+            continue
+        qualitative = bool(strip_references(text).strip(" .,"))
         if not qualitative:
             continue
         if len(claim.citations) < minimum:
@@ -334,77 +387,13 @@ def check_no_pii(texts: Sequence[tuple[str, str]]) -> CriticCheck:
     )
 
 
-def _syllables(word: str) -> int:
-    """Approximate syllable count. Adequate for a readability index."""
-    word = word.lower().strip(".,;:!?()'\"")
-    if not word:
-        return 0
-    vowels = "aeiouy"
-    count = 0
-    previous_was_vowel = False
-    for char in word:
-        is_vowel = char in vowels
-        if is_vowel and not previous_was_vowel:
-            count += 1
-        previous_was_vowel = is_vowel
-    if word.endswith("e") and count > 1:
-        count -= 1
-    return max(1, count)
-
-
-def flesch_kincaid_grade(text: str) -> float:
-    """Flesch-Kincaid grade level.
-
-    Implemented here rather than pulled in as a dependency: it is one formula,
-    and a readability score is not worth a transitive dependency tree in a
-    package whose offline guarantee is a design constraint.
-    """
-    sentences = [s for s in re.split(r"[.!?]+", text) if s.strip()]
-    words = [w for w in re.findall(r"[A-Za-z']+", text) if w]
-    if not sentences or not words:
-        return 0.0
-    syllables = sum(_syllables(w) for w in words)
-    return (
-        0.39 * (len(words) / len(sentences)) + 11.8 * (syllables / len(words)) - 15.59
-    )
-
-
-def check_reading_grade(
-    findings: Sequence[Finding], thresholds: CriticThresholds
-) -> CriticCheck:
-    """Prose is within the configured reading grade."""
-    offending: list[str] = []
-    for finding in findings:
-        text = " ".join(
-            [
-                finding.headline,
-                *(FACT_PLACEHOLDER_RE.sub("a figure", c.text) for c in finding.claims),
-            ]
-        )
-        grade = flesch_kincaid_grade(text)
-        if grade > thresholds.max_reading_grade:
-            offending.append(
-                f"{finding.finding_id}: grade {grade:.1f} exceeds "
-                f"{thresholds.max_reading_grade:.1f}"
-            )
-
-    return CriticCheck(
-        name="reading_grade",
-        passed=not offending,
-        detail=(
-            f"all findings within grade {thresholds.max_reading_grade:.0f}"
-            if not offending
-            else f"{len(offending)} finding(s) too difficult to read"
-        ),
-        offending=tuple(offending),
-    )
-
-
 def check_no_unexplained_acronyms(findings: Sequence[Finding]) -> CriticCheck:
     """Internal acronyms are expanded on first use."""
     offending: list[str] = []
     for finding in findings:
-        text = " ".join([finding.headline, *(c.text for c in finding.claims)])
+        text = strip_references(
+            " ".join([finding.headline, *(c.text for c in finding.claims)])
+        )
         for acronym in sorted(set(_ACRONYM_RE.findall(text))):
             if acronym in _KNOWN_ACRONYMS:
                 continue

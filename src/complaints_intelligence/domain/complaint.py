@@ -104,8 +104,6 @@ class Enrichment(BaseModel):
 
     #: -1 (most negative) to +1. Compared within channel, never across it.
     sentiment: Annotated[float, Field(ge=-1.0, le=1.0)]
-    vulnerability_flag: bool = False
-    detriment_flag: bool = False
 
     evidence_spans: tuple[EvidenceSpan, ...] = ()
     routing: RoutingDecision
@@ -182,3 +180,40 @@ class ResolutionNote(BaseModel):
     #: Calendar days from receipt to closure.
     days_to_close: Annotated[int, Field(ge=0)]
     text: str
+
+
+class Precedent(BaseModel):
+    """A closed complaint and what was done about it.
+
+    The unit of remediation retrieval, and deliberately a pair. The complaint
+    is what the search matched on — like against like, both being customer
+    prose — and the note is what makes the match useful. Returning the note
+    alone would leave the agent judging whether a precedent transfers without
+    seeing the problem it was a response to.
+
+    Carrying the complaint is also what makes the citations mean anything:
+    precedent citations are offsets into complaint text, resolved against the
+    store at render time, so the text the model was shown and the text those
+    offsets index must be the same string.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    complaint: ComplaintEnvelope
+    resolution: ResolutionNote
+
+    @model_validator(mode="after")
+    def _check_pairing(self) -> Self:
+        if self.complaint.complaint_id != self.resolution.complaint_id:
+            msg = (
+                f"precedent pairs complaint {self.complaint.complaint_id!r} "
+                f"with a note for {self.resolution.complaint_id!r}"
+            )
+            raise ValueError(msg)
+        if self.complaint.status is not ComplaintStatus.CLOSED:
+            msg = (
+                f"precedent {self.complaint.complaint_id!r} is not closed; "
+                f"an open complaint has no outcome to learn from"
+            )
+            raise ValueError(msg)
+        return self

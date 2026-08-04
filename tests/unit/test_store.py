@@ -7,12 +7,13 @@ import pytest
 from complaints_intelligence.agent.budgets import BudgetLedger
 from complaints_intelligence.agent.tools import ToolBelt
 from complaints_intelligence.config import BASELINE_WEEK, REPORTING_WEEK, Settings
+from complaints_intelligence.domain.complaint import ComplaintStatus
 from complaints_intelligence.errors import ProvenanceError, ToolContractError
 from complaints_intelligence.store.duckdb_store import DuckDBStore
 from complaints_intelligence.store.protocols import (
     ComplaintRepository,
     FactStore,
-    ResolutionRepository,
+    PrecedentRepository,
 )
 
 
@@ -20,7 +21,7 @@ class TestProtocolConformance:
     def test_store_satisfies_all_three_protocols(self, store: DuckDBStore):
         """One object, three narrow protocols. Callers depend on the protocol."""
         assert isinstance(store, ComplaintRepository)
-        assert isinstance(store, ResolutionRepository)
+        assert isinstance(store, PrecedentRepository)
         assert isinstance(store, FactStore)
 
 
@@ -85,6 +86,83 @@ class TestRetrievalScoping:
         first = store.query_view("v_health_indicators")
         second = store.query_view("v_health_indicators")
         assert [r["week"] for r in first] == [r["week"] for r in second]
+
+
+class TestPrecedentRetrieval:
+    """Precedent is complaint-to-complaint, restricted before ranking."""
+
+    QUERY = "Failed payments. Transfers and card payments that do not complete."
+
+    def test_every_precedent_is_closed_and_has_a_note(self, store: DuckDBStore):
+        """The restriction that makes a precedent a precedent.
+
+        An open complaint has no outcome to learn from, and a closed one
+        without a note records nothing about what was done.
+        """
+        results = store.search_precedents(query_text=self.QUERY, limit=6)
+        assert results
+        for precedent in results:
+            assert precedent.complaint.status is ComplaintStatus.CLOSED
+            assert precedent.resolution.text.strip()
+
+    def test_the_pair_belongs_to_one_complaint(self, store: DuckDBStore):
+        """The join must not cross records.
+
+        A note attached to the wrong complaint would produce a recommendation
+        grounded in a case that never happened, and nothing downstream could
+        detect it.
+        """
+        results = store.search_precedents(query_text=self.QUERY, limit=6)
+        assert results
+        for precedent in results:
+            assert (
+                precedent.resolution.complaint_id == precedent.complaint.complaint_id
+            )
+
+    def test_the_category_filter_is_applied_before_ranking(self, store: DuckDBStore):
+        results = store.search_precedents(
+            query_text=self.QUERY, category="branch_closure", limit=5
+        )
+        assert results
+        assert all(
+            p.complaint.enrichment.category == "branch_closure" for p in results
+        )
+
+    def test_the_widened_pass_reaches_beyond_one_category(self, store: DuckDBStore):
+        """The second retrieval pass drops the filter, and must actually widen.
+
+        A neighbouring category can still transfer — the same gateway timeout
+        surfaces as both a failed payment and a declined card — and if the
+        unscoped pass returned the same rows the widening would be theatre.
+        """
+        scoped = store.search_precedents(
+            query_text=self.QUERY, category="payments_failed", limit=6
+        )
+        widened = store.search_precedents(query_text=self.QUERY, limit=6)
+        assert scoped and widened
+        assert {p.complaint.enrichment.category for p in widened} - {"payments_failed"}
+
+    def test_results_are_deterministic(self, store: DuckDBStore):
+        def ids() -> list[str]:
+            return [
+                p.complaint.complaint_id
+                for p in store.search_precedents(query_text=self.QUERY, limit=6)
+            ]
+
+        assert ids() == ids()
+
+    def test_retrieval_is_relevant(self, store: DuckDBStore):
+        """Matching complaint against complaint has to actually work.
+
+        The query is taxonomy prose and the corpus is customer prose — the
+        like-for-like comparison the single embedding space exists to make
+        possible.
+        """
+        results = store.search_precedents(
+            query_text=self.QUERY, category="payments_failed", limit=3
+        )
+        assert results
+        assert all(p.resolution.category == "payments_failed" for p in results)
 
 
 class TestFactStore:
@@ -153,7 +231,7 @@ class TestToolContract:
         assert surface == {
             "query_metrics",
             "get_exemplars",
-            "get_resolutions",
+            "get_precedent",
             "entering",
             "calls",
         }

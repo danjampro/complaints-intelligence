@@ -25,7 +25,6 @@ before it can be rendered. The most common causes:
 - **Causal language.** Replace "caused by", "because of", "due to", "led to"
   with "coincident with" or "alongside" — or move the assertion into
   `hypotheses`, where it is published as requiring confirmation.
-- **Reading grade too high.** Shorter sentences, plainer words, no jargon.
 
 # Rules
 

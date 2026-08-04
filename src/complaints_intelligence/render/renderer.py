@@ -25,7 +25,13 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from complaints_intelligence.config import PACKAGE_ROOT
 from complaints_intelligence.domain.complaint import ComplaintEnvelope
-from complaints_intelligence.domain.finding import Citation, Finding, Remediation
+from complaints_intelligence.domain.finding import (
+    FACT_PLACEHOLDER_RE,
+    Adjudication,
+    Citation,
+    Finding,
+    Remediation,
+)
 from complaints_intelligence.domain.report import Report
 from complaints_intelligence.errors import ProvenanceError
 from complaints_intelligence.logging import get_logger
@@ -36,7 +42,17 @@ log = get_logger(__name__)
 
 _TEMPLATE_DIR = PACKAGE_ROOT / "render" / "templates"
 
-_PLACEHOLDER_RE = re.compile(r"\{\{(f_\d{4})\}\}")
+#: Shared with the critic, so verification and rendering cannot disagree
+#: about what counts as a fact reference.
+_PLACEHOLDER_RE = FACT_PLACEHOLDER_RE
+
+#: Complaint or theme identifiers the model wrapped in braces, imitating the
+#: fact-placeholder syntax. The prompts ask it not to write identifiers into
+#: prose at all; when it does anyway, the braces are stripped so the reference
+#: reads as a reference rather than as an unresolved placeholder.
+_BRACED_IDENTIFIER_RE = re.compile(
+    r"\{\{?((?:[A-Z]{2,5}-\d{4}W\d{2}-\d{4}|CT-\d{3}))\}\}?"
+)
 
 #: Quotations longer than this are truncated in the rendered report. The full
 #: span remains in the report object, so the drill-down is unaffected.
@@ -72,7 +88,25 @@ def resolve_text(text: str, facts: FactStore, *, strict: bool = True) -> str:
             )
             raise ProvenanceError(msg) from None
 
-    return _PLACEHOLDER_RE.sub(substitute, text)
+    return _BRACED_IDENTIFIER_RE.sub(r"\1", _PLACEHOLDER_RE.sub(substitute, text))
+
+
+def _snap_to_words(text: str, start: int, end: int) -> tuple[int, int]:
+    """Widen a span outward to the nearest word boundaries.
+
+    Models pick offsets approximately, and a quotation cut mid-word — "the
+    transfer failed without any explanat" — reads as a defect in the report
+    rather than in the citation.
+
+    Widening only. The span still covers everything the model cited, so the
+    quotation cannot be narrowed to change its sense; it can only gain the
+    rest of a word it already partly covered.
+    """
+    while start > 0 and not text[start - 1].isspace():
+        start -= 1
+    while end < len(text) and not text[end - 1].isspace() and not text[end].isspace():
+        end += 1
+    return start, end
 
 
 def resolve_quote(
@@ -80,8 +114,11 @@ def resolve_quote(
 ) -> tuple[str, ComplaintEnvelope]:
     """Pull the quoted span out of the stored complaint text."""
     complaint = complaints.get_complaint(citation.complaint_id)
-    end = min(citation.end, len(complaint.text))
-    quote = complaint.text[citation.start : end].strip()
+    start = max(0, min(citation.start, len(complaint.text)))
+    end = max(start, min(citation.end, len(complaint.text)))
+    start, end = _snap_to_words(complaint.text, start, end)
+
+    quote = complaint.text[start:end].strip()
     if len(quote) > _MAX_QUOTE_CHARS:
         quote = quote[: _MAX_QUOTE_CHARS - 1].rstrip() + "…"
     return quote, complaint
@@ -176,6 +213,23 @@ class RenderedFinding:
         return [c for c in self.claims if c.requires_confirmation]
 
 
+class RenderedAdjudication:
+    """An adjudication with its figures substituted.
+
+    The rationale is published prose and is subject to the same resolution as
+    any claim. Rendering it raw left `{f_0191}` visible in the report — a
+    figure the reader could not read and the store never supplied.
+    """
+
+    def __init__(
+        self, adjudication: Adjudication, facts: FactStore, *, strict: bool = True
+    ) -> None:
+        self.theme_id = adjudication.theme_id
+        self.verdict = adjudication.verdict.value.replace("_", " ")
+        self.rationale = resolve_text(adjudication.rationale, facts, strict=strict)
+        self.duplicate_of_category = adjudication.duplicate_of_category
+
+
 class RenderedRemediation:
     """A remediation ready for templating."""
 
@@ -239,7 +293,10 @@ def render_markdown(
             RenderedRemediation(r, facts, complaints, strict=strict)
             for r in report.remediations
         ],
-        adjudications=report.adjudications,
+        adjudications=[
+            RenderedAdjudication(a, facts, strict=strict)
+            for a in report.adjudications
+        ],
         generated_at=report.generated_at.strftime("%Y-%m-%d %H:%M UTC"),
     )
     log.info(

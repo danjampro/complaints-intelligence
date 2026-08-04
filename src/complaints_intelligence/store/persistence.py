@@ -26,6 +26,7 @@ from complaints_intelligence.domain.complaint import (
     Enrichment,
     EvidenceSpan,
     Outcome,
+    Precedent,
     ResolutionNote,
     RoutingDecision,
 )
@@ -46,8 +47,6 @@ COMPLAINT_SCHEMA = pa.schema(
         ("margin", pa.float64()),
         ("novelty", pa.float64()),
         ("sentiment", pa.float64()),
-        ("vulnerability_flag", pa.bool_()),
-        ("detriment_flag", pa.bool_()),
         ("routing", pa.string()),
         ("candidate_theme_id", pa.string()),
         ("evidence_spans", pa.string()),
@@ -104,8 +103,6 @@ def _complaint_row(complaint: ComplaintEnvelope) -> dict[str, Any]:
         "margin": e.margin,
         "novelty": e.novelty,
         "sentiment": e.sentiment,
-        "vulnerability_flag": e.vulnerability_flag,
-        "detriment_flag": e.detriment_flag,
         "routing": e.routing.value,
         "candidate_theme_id": e.candidate_theme_id,
         "evidence_spans": json.dumps(
@@ -132,8 +129,6 @@ def complaint_from_row(row: Row) -> ComplaintEnvelope:
         margin=float(row["margin"]),
         novelty=float(row["novelty"]),
         sentiment=float(row["sentiment"]),
-        vulnerability_flag=bool(row["vulnerability_flag"]),
-        detriment_flag=bool(row["detriment_flag"]),
         evidence_spans=spans,
         routing=RoutingDecision(str(row["routing"])),
         candidate_theme_id=(
@@ -164,6 +159,31 @@ def resolution_from_row(row: Row) -> ResolutionNote:
         redress_gbp=int(row["redress_gbp"]),
         days_to_close=int(row["days_to_close"]),
         text=str(row["text"]),
+    )
+
+
+def precedent_from_row(row: Row) -> Precedent:
+    """Reconstruct a precedent from a ``v_precedent`` row.
+
+    The view carries a complaint and its note side by side, so two columns
+    have to be renamed on the way into ``ResolutionNote``: the note's text
+    arrives as ``resolution_text`` because ``text`` belongs to the complaint,
+    and ``category`` is the complaint's, the note's copy having been dropped
+    as a duplicate. The remapping is written out here rather than inferred,
+    so a change to the view is a visible diff in this module.
+    """
+    return Precedent(
+        complaint=complaint_from_row(row),
+        resolution=resolution_from_row(
+            {
+                "complaint_id": row["complaint_id"],
+                "category": row["category"],
+                "outcome": row["outcome"],
+                "redress_gbp": row["redress_gbp"],
+                "days_to_close": row["days_to_close"],
+                "text": row["resolution_text"],
+            }
+        ),
     )
 
 

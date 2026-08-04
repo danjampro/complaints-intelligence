@@ -14,6 +14,7 @@ never types a figure.
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 from typing import Annotated
 
@@ -24,6 +25,19 @@ from complaints_intelligence.domain.fact import FactId
 #: Placeholder syntax the model writes into prose where a figure belongs,
 #: e.g. "volumes rose to {{f_0142}} complaints". Resolved at render time.
 FACT_PLACEHOLDER = "{{{{{fact_id}}}}}"
+
+#: Matches a fact placeholder with either one or two brace pairs.
+#:
+#: Lenient on the delimiter, strict on the value. Models reliably choose the
+#: right fact ID and unreliably count braces, and rejecting a correct
+#: reference over its punctuation costs a revision round to fix nothing. The
+#: guarantee is untouched: whichever form is written, the ID must still
+#: resolve in the fact store or the run fails.
+#:
+#: Shared by the critic and the renderer so the two cannot disagree about
+#: what counts as a reference — a divergence there would let a "number" pass
+#: verification and then fail to resolve, or vice versa.
+FACT_PLACEHOLDER_RE = re.compile(r"\{\{?(f_\d{4})\}\}?")
 
 
 class FindingKind(StrEnum):

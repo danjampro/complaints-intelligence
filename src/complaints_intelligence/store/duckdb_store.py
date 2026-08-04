@@ -3,7 +3,7 @@
 Stands in for BigQuery. The SQL is real SQL against real Parquet, and the
 views carry the names used in architecture section 7, so what a reviewer reads
 here is close to what would run in production. Dialect deltas are recorded in
-ADR-0009 and in the header of ``sql/views.sql``.
+the header of ``sql/views.sql``.
 
 Vector search uses ``array_cosine_similarity`` with metadata filters applied
 before ranking — the same shape as BigQuery's ``VECTOR_SEARCH`` with a
@@ -26,7 +26,11 @@ import numpy as np
 import pyarrow as pa
 
 from complaints_intelligence.config import Settings
-from complaints_intelligence.domain.complaint import ComplaintEnvelope, ResolutionNote
+from complaints_intelligence.domain.complaint import (
+    ComplaintEnvelope,
+    Precedent,
+    ResolutionNote,
+)
 from complaints_intelligence.domain.fact import Fact
 from complaints_intelligence.errors import ProvenanceError
 from complaints_intelligence.logging import get_logger
@@ -34,6 +38,7 @@ from complaints_intelligence.retrieval.embedder import TfidfSvdEmbedder
 from complaints_intelligence.store.persistence import (
     complaint_from_row,
     fact_from_row,
+    precedent_from_row,
     resolution_from_row,
 )
 
@@ -55,7 +60,6 @@ class DuckDBStore:
         self._settings = settings
         self._conn = duckdb.connect(":memory:")
         self._complaint_embedder: TfidfSvdEmbedder | None = None
-        self._resolution_embedder: TfidfSvdEmbedder | None = None
         self._facts_loaded = False
         self._column_cache: dict[str, tuple[str, ...]] = {}
 
@@ -120,13 +124,29 @@ class DuckDBStore:
         self._conn.execute((_SQL_DIR / "views.sql").read_text(encoding="utf-8"))
 
     def _build_indexes(self) -> None:
-        """Fit the embedders and materialise vectors as DuckDB columns.
+        """Fit the embedder and materialise vectors as DuckDB columns.
 
-        Complaints and resolution notes get separate indexes. They are
-        different corpora with different vocabulary — a resolution note is
-        written by a case handler, a complaint by a customer — and fitting one
-        model across both would blur exactly the distinction that makes
-        resolution retrieval useful.
+        **One embedding space, fitted on complaint text, serving every
+        consumer** — exemplar retrieval, theme coherence, and precedent
+        retrieval alike. In production this is a single
+        ``SEMANTIC_SIMILARITY`` column; see the pipeline architecture,
+        §Embedding strategy.
+
+        A shared space is required wherever two things are compared to each
+        other rather than to a query — theme centroids against category
+        centroids, say — because distances have to mean the same thing on both
+        sides. Precedent retrieval joins that requirement rather than
+        contradicting it: it matches a complaint against the complaint text of
+        closed cases and reaches the note by a join, which is a symmetric
+        like-for-like comparison.
+
+        Embedding the notes as their own corpus and searching those directly
+        was the earlier approach and is worse. It is asymmetric retrieval — the
+        query is a description of a problem, the documents are terse,
+        jargon-heavy accounts of what a handler did about one — so the
+        embedding is asked to bridge "customer could not make a payment" to
+        "reversed the fee and reset the payee limit". Complaints are richer,
+        more consistent, and already in the space the query is written for.
         """
         complaint_rows = self._conn.execute(
             "SELECT complaint_id, text FROM complaints ORDER BY complaint_id"
@@ -137,19 +157,6 @@ class DuckDBStore:
             table="complaint_vectors",
             ids=[str(r[0]) for r in complaint_rows],
             vectors=self._complaint_embedder.embed(texts),
-        )
-
-        resolution_rows = self._conn.execute(
-            "SELECT complaint_id, text FROM resolutions ORDER BY complaint_id"
-        ).fetchall()
-        res_texts = [str(r[1]) for r in resolution_rows]
-        self._resolution_embedder = TfidfSvdEmbedder(self._settings.embedding).fit(
-            res_texts
-        )
-        self._register_vectors(
-            table="resolution_vectors",
-            ids=[str(r[0]) for r in resolution_rows],
-            vectors=self._resolution_embedder.embed(res_texts),
         )
 
     def _register_vectors(
@@ -170,7 +177,7 @@ class DuckDBStore:
                 "vec": pa.FixedSizeListArray.from_arrays(flat, dimension),
             }
         )
-        # `table` is one of two module-controlled literals, never caller input.
+        # `table` is a module-controlled literal, never caller input.
         view_name = f"_arrow_{table}"
         self._conn.register(view_name, arrow_table)
         self._conn.execute(
@@ -293,37 +300,49 @@ class DuckDBStore:
             complaint_from_row(self._as_dict("complaints", row)) for row in rows
         )
 
-    # -- ResolutionRepository --------------------------------------------
+    # -- PrecedentRepository ----------------------------------------------
 
-    def search_resolutions(
+    def search_precedents(
         self,
         *,
         query_text: str,
         category: str | None = None,
         limit: int = 6,
-    ) -> tuple[ResolutionNote, ...]:
-        assert self._resolution_embedder is not None  # noqa: S101 - set in open()
-        query_vector = self._resolution_embedder.embed_one(query_text).tolist()
+    ) -> tuple[Precedent, ...]:
+        """Vector search over closed complaints, joined to their notes.
+
+        Complaint-to-complaint, in the single complaint embedding space. The
+        candidate set is ``v_precedent`` — closed, with a note — so the
+        restriction is applied before ranking rather than as a filter over the
+        results. Post-filtering would quietly return fewer precedents than
+        asked for whenever the nearest complaints happened to be open.
+
+        Deliberately not scoped to a week. A precedent is useful precisely
+        because it is historical, and the remediation node widens further by
+        dropping ``category`` on its second pass.
+        """
+        assert self._complaint_embedder is not None  # noqa: S101 - set in open()
+        query_vector = self._complaint_embedder.embed_one(query_text).tolist()
 
         predicates = ["TRUE"]
         params: list[Any] = []
         if category is not None:
-            predicates.append("r.category = ?")
+            predicates.append("p.category = ?")
             params.append(category)
 
         sql = f"""
-            SELECT r.*, array_cosine_similarity(v.vec, ?::FLOAT[{len(query_vector)}])
+            SELECT p.*, array_cosine_similarity(v.vec, ?::FLOAT[{len(query_vector)}])
                    AS similarity
-            FROM resolutions r
-            JOIN resolution_vectors v USING (complaint_id)
+            FROM v_precedent p
+            JOIN complaint_vectors v USING (complaint_id)
             WHERE {" AND ".join(predicates)}
-            ORDER BY similarity DESC, r.complaint_id
+            ORDER BY similarity DESC, p.complaint_id
             LIMIT ?
         """  # noqa: S608 - predicates are literals; every value is bound
         rows = self._conn.execute(sql, [query_vector, *params, limit]).fetchall()
         columns = [d[0] for d in self._conn.description or []]
         return tuple(
-            resolution_from_row(dict(zip(columns, row, strict=True))) for row in rows
+            precedent_from_row(dict(zip(columns, row, strict=True))) for row in rows
         )
 
     def get_resolution(self, complaint_id: str) -> ResolutionNote | None:

@@ -32,6 +32,7 @@ def build_client(config: LLMConfig) -> LLMClient:
                 model=config.model,
                 temperature=config.temperature,
                 max_output_tokens=config.max_output_tokens,
+                thinking_level=config.thinking_level,
             )
 
         case "record":
@@ -43,5 +44,6 @@ def build_client(config: LLMConfig) -> LLMClient:
                     model=config.model,
                     temperature=config.temperature,
                     max_output_tokens=config.max_output_tokens,
+                    thinking_level=config.thinking_level,
                 )
             )

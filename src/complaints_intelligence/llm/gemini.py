@@ -14,7 +14,9 @@ schema, never scraped from text.
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Any
+import re
+import time
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel
 
@@ -31,6 +33,28 @@ log = get_logger(__name__)
 #: missing key is a clear error at construction rather than an import failure.
 API_KEY_ENV = "GEMINI_API_KEY"
 
+#: Transient failures worth retrying. 429 is rate limiting; 5xx is the
+#: provider. Everything else means the request itself is wrong.
+_RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+_RETRY_ATTEMPTS = 5
+_RETRY_INITIAL_DELAY = 2.0
+#: Ceiling on a single wait. A daily quota reports a retry delay measured in
+#: hours; waiting for it would hang a run that should fail with a clear
+#: message instead.
+_RETRY_MAX_DELAY = 70.0
+
+_RETRY_DELAY_RE = re.compile(r"'?retryDelay'?\s*:\s*'?(\d+(?:\.\d+)?)s")
+
+
+def _retry_after(exc: Exception) -> float | None:
+    """Seconds the server asked us to wait, if it said.
+
+    Parsed from the message rather than a typed field because the SDK
+    surfaces the ``RetryInfo`` detail only in the raw error payload.
+    """
+    match = _RETRY_DELAY_RE.search(str(exc))
+    return float(match.group(1)) if match else None
+
 
 class GeminiClient:
     """Calls Gemini for structured output."""
@@ -40,7 +64,8 @@ class GeminiClient:
         *,
         model: str,
         temperature: float = 0.0,
-        max_output_tokens: int = 4096,
+        max_output_tokens: int = 16384,
+        thinking_level: str = "low",
         api_key: str | None = None,
     ) -> None:
         try:
@@ -65,6 +90,7 @@ class GeminiClient:
         self._model = model
         self._temperature = temperature
         self._max_output_tokens = max_output_tokens
+        self._thinking_level = thinking_level
 
     @property
     def mode(self) -> str:
@@ -84,6 +110,12 @@ class GeminiClient:
     ) -> LLMResponse[T]:
         from google.genai import types
 
+        # The SDK types this as its own enum; the value is validated against
+        # a Literal in `LLMConfig`, so the cast is narrowing a string we have
+        # already constrained rather than trusting arbitrary input.
+        thinking: Any = types.ThinkingConfig(
+            thinking_level=cast("Any", self._thinking_level)
+        )
         config: Any = types.GenerateContentConfig(
             # Temperature zero for reproducibility. It does not make the model
             # deterministic — nothing does, across model versions — which is
@@ -93,10 +125,22 @@ class GeminiClient:
             max_output_tokens=self._max_output_tokens,
             response_mime_type="application/json",
             response_schema=schema,
+            thinking_config=thinking,
         )
-        response = self._client.models.generate_content(
-            model=self._model, contents=rendered, config=config
-        )
+        response = self._generate_with_retry(rendered, config, prompt_id)
+
+        # A truncated response is invalid JSON, and the resulting parse error
+        # points at a syntax problem rather than at the real cause. Check the
+        # finish reason first so the message names what actually happened.
+        finish_reason = self._finish_reason(response)
+        if finish_reason and finish_reason not in {"STOP", "FINISH_REASON_STOP"}:
+            msg = (
+                f"Gemini stopped early on prompt {prompt_id!r} "
+                f"(finish_reason={finish_reason}). For MAX_TOKENS, raise "
+                f"`llm.max_output_tokens`; for SAFETY, the prompt or the "
+                f"retrieved complaint text triggered a filter."
+            )
+            raise ComplaintsIntelligenceError(msg)
 
         text = getattr(response, "text", None)
         if not text:
@@ -121,3 +165,61 @@ class GeminiClient:
             prompt_chars=len(rendered),
         )
         return LLMResponse(parsed=parsed, cassette_key=key, prompt_chars=len(rendered))
+
+    def _generate_with_retry(self, rendered: str, config: Any, prompt_id: str) -> Any:
+        """Call the model, retrying transient server errors.
+
+        Rate limits and 5xx responses are ordinary weather on a hosted API,
+        and a run makes a dozen or so calls — without this, recording a full
+        set of cassettes fails most times it is attempted, halfway through.
+
+        Only transient classes are retried. A 400 means the request is wrong
+        and retrying it will produce the same wrong answer more slowly.
+        """
+        from google.genai import errors
+
+        delay = _RETRY_INITIAL_DELAY
+        last: Exception | None = None
+
+        for attempt in range(1, _RETRY_ATTEMPTS + 1):
+            try:
+                return self._client.models.generate_content(
+                    model=self._model, contents=rendered, config=config
+                )
+            except (errors.ServerError, errors.ClientError) as exc:
+                status = getattr(exc, "code", None)
+                if status not in _RETRYABLE_STATUS:
+                    raise
+                last = exc
+                if attempt == _RETRY_ATTEMPTS:
+                    break
+                # Prefer the server's own hint over guessing. A 429 carries
+                # the exact delay it wants; exponential backoff either waits
+                # too long or retries into the same limit.
+                wait = _retry_after(exc) or delay
+                log.warning(
+                    "gemini_retry",
+                    prompt_id=prompt_id,
+                    status=status,
+                    attempt=attempt,
+                    sleeping=round(wait, 1),
+                )
+                time.sleep(min(wait, _RETRY_MAX_DELAY))
+                delay *= 2
+
+        msg = (
+            f"Gemini did not respond for prompt {prompt_id!r} after "
+            f"{_RETRY_ATTEMPTS} attempts: {last}"
+        )
+        raise ComplaintsIntelligenceError(msg)
+
+    @staticmethod
+    def _finish_reason(response: Any) -> str | None:
+        """Why generation stopped, if the SDK reported it."""
+        candidates = getattr(response, "candidates", None) or []
+        if not candidates:
+            return None
+        reason = getattr(candidates[0], "finish_reason", None)
+        if reason is None:
+            return None
+        return str(getattr(reason, "name", reason))
