@@ -6,19 +6,32 @@ against, so there is exactly one statement of what the week contains.
 
 Each signal exists to exercise a specific behaviour:
 
-===============  ==============================================================
-Signal           Exercises
-===============  ==============================================================
-``SPIKE``        A genuine driver movement the report should lead on.
-``CT_007``       A real emerging theme ``adjudicate`` should accept.
-``CT_012``       An ingest artefact ``adjudicate`` should **reject**. This is
-                 what distinguishes an agent from a rubber stamp.
-``NOISE``        A category that moves enough to trip a naive threshold but
-                 does not survive multiplicity correction.
-``INJECTIONS``   Prompt-injection payloads that must reach retrieval and be
-                 neutralised at prompt assembly, not filtered from the data.
-``PII_LEAKS``    Residual identifiers redaction missed, for the critic.
-===============  ==============================================================
+==================  ===========================================================
+Signal              Exercises
+==================  ===========================================================
+``SPIKE``           A genuine driver movement the report should lead on.
+``SECONDARY_RISE``  A smaller real rise, so the week is not a single story.
+``DECLINE``         A genuine fall, so "up" is not the only direction the
+                    pipeline can express.
+``OVERDRAFT_RISE``  A rise reaching the firm through the regulator, with a
+                    tone shift too small to report — *tested and not carried*,
+                    which must read differently from *not measured*.
+``MANDATE_ERRORS``  A rise whose tone moves far enough to report, giving the
+                    sentiment section a story of its own.
+``CT_007``          A real emerging theme ``adjudicate`` should accept.
+``CT_012``          An ingest artefact ``adjudicate`` should **reject**. This
+                    is what distinguishes an agent from a rubber stamp.
+``NOISE``           A category that moves enough to trip a naive threshold but
+                    does not survive multiplicity correction.
+``INJECTIONS``      Prompt-injection payloads that must reach retrieval and be
+                    neutralised at prompt assembly, not filtered from the data.
+``PII_LEAKS``       Residual identifiers redaction missed, for the critic.
+==================  ===========================================================
+
+The five genuine volume movements are sized against an investigation budget of
+five. That is the point of the count rather than an accident of it: the budget
+binds exactly, so the category the agent declines to investigate is the one
+that failed its significance test, not whichever happened to rank last.
 
 Injections and PII leaks are planted *in the data*, not screened out of it.
 Filtering them at generation would test nothing: the claim being demonstrated
@@ -133,6 +146,43 @@ DECLINE = VolumeSignal(
     description="A closure programme completing; volumes falling back.",
 )
 
+# A third real rise, concentrated in regulator referrals. The channel mix is
+# itself the compliance signal: a category surfacing through the ombudsman
+# rather than the app is one the firm's own handling did not resolve.
+OVERDRAFT_RISE = VolumeSignal(
+    category="overdraft_fees",
+    baseline_count=31,
+    reporting_count=58,
+    concentrated_in=Channel.FOS_REFERRAL,
+    expect_significant=True,
+    sentiment_delta=-0.11,
+    description=(
+        "A real rise reaching the firm largely through the regulator. The "
+        "sentiment delta is deliberately below the reporting threshold: the "
+        "tone moved, the movement was tested, and it did not clear the bar. "
+        "That is a different statement from 'sentiment did not move', and the "
+        "report should be able to make it."
+    ),
+)
+
+# A fourth, unconcentrated, carrying the sentiment story. Concentration and
+# sentiment pull against each other: a signal confined to one channel leaves
+# the baseline cell for that channel too thin for a within-channel test to
+# say anything, so the category whose tone should move is a broad one.
+MANDATE_ERRORS = VolumeSignal(
+    category="direct_debit_errors",
+    baseline_count=24,
+    reporting_count=45,
+    concentrated_in=None,
+    expect_significant=True,
+    sentiment_delta=-0.24,
+    description=(
+        "Mandates cancelled or collected in error, spread across channels. "
+        "Volume and tone both move, which is what gives the sentiment section "
+        "a second story that is not simply an echo of the payments spike."
+    ),
+)
+
 # --------------------------------------------------------------------------
 # 2. Noise. Moves ~25% on a small base — past the naive threshold, nowhere
 #    near significant once multiplicity is accounted for.
@@ -150,7 +200,19 @@ NOISE = VolumeSignal(
     ),
 )
 
-VOLUME_SIGNALS: tuple[VolumeSignal, ...] = (SPIKE, SECONDARY_RISE, DECLINE, NOISE)
+#: Five genuine movements against an investigation budget of five, plus one
+#: decoy. The count is deliberate: the budget binds exactly, so the category
+#: the agent drops is the one that failed its significance test rather than
+#: whichever happened to rank sixth. A sixth genuine signal would silently
+#: displace a real one and should be added only alongside a budget change.
+VOLUME_SIGNALS: tuple[VolumeSignal, ...] = (
+    SPIKE,
+    SECONDARY_RISE,
+    DECLINE,
+    OVERDRAFT_RISE,
+    MANDATE_ERRORS,
+    NOISE,
+)
 
 # --------------------------------------------------------------------------
 # 3. Candidate themes.

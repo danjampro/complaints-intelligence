@@ -126,9 +126,22 @@ class ScriptedLLM:
         ]
 
     def _claim_text(self, fact_ids: list[str]) -> str:
-        reference = f"{{{{{fact_ids[0]}}}}}" if fact_ids else ""
+        # The reference carries the noun it counts. A bare trailing reference
+        # renders as "...they did not expect 131." and is itself a defect, so
+        # the clean text must not contain one or every clean-run test fails on
+        # a flaw in the fake rather than in the code under test.
+        reference = f"across {{{{{fact_ids[0]}}}}} complaints" if fact_ids else ""
         if "literal_number" in self.defects:
             return f"Complaint volume reached 142 cases {reference}."
+        if "fact_placement" in self.defects:
+            # A legitimate reference in a slot where it renders as a bare
+            # figure. Every other check passes on this text.
+            return (
+                f"Customers describe outbound transfers that do not complete "
+                f"and charges they did not expect {{{{{fact_ids[0]}}}}}."
+                if fact_ids
+                else "Customers describe outbound transfers."
+            )
         if "causal" in self.defects:
             return (
                 f"Customers report repeated failed transfers, caused by a "

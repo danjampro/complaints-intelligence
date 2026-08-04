@@ -29,13 +29,22 @@ complaints are *about*.
 
    If you write a digit or a number word, the report is rejected.
 
-   **Put the reference where the figure belongs grammatically.** It is
-   replaced by a number, so the sentence must still read correctly once it
-   is. Do not use it as a trailing reference the way you would a citation.
+   **Use the phrasing given for each fact.** Every entry in the fact block
+   below ends with `write as:` and a worked phrase. Use that phrase. It exists
+   because the reference becomes a number, and the sentence has to still read
+   correctly once it does.
+
+   A fact reference is almost always either followed by the noun it counts or
+   preceded by a word that introduces a figure. If you cannot put a noun after
+   it or a preposition before it, the sentence is the wrong shape — rewrite
+   the sentence rather than trailing the reference on the end of it.
 
    - Correct: `Complaints about failed transfers reached {{f_0142}}.`
+   - Correct: `Customers reported rejections across {{f_0142}} complaints.`
    - Wrong: `Customers described failed transfers {{f_0142}}.`
-     (this renders as "...failed transfers 131.")
+     (renders as "...described failed transfers 131.")
+   - Wrong: `Customers faced late fees following the rejections {{f_0033}}.`
+     (renders as "...following the rejections 172.9%.")
 
 2. **Every claim must cite at least two complaints.** A citation is a
    `complaint_id` plus the character offsets of the span you are relying on.

@@ -26,6 +26,7 @@ from complaints_intelligence.domain.finding import Finding, FindingKind
 from complaints_intelligence.domain.report import CriticReport
 from complaints_intelligence.errors import BudgetExceededError
 from complaints_intelligence.logging import get_logger
+from complaints_intelligence.render.spans import clamp_and_snap
 from complaints_intelligence.synth.taxonomy import get_node
 
 log = get_logger(__name__)
@@ -40,6 +41,11 @@ def _rendered_texts(state: RunState, context: RunContext) -> list[tuple[str, str
     The PII scan runs over both. A quotation pulled from the store can carry
     an identifier redaction missed, and scanning only the model's own prose
     would inspect the part of the report least likely to contain any.
+
+    The span is resolved with the renderer's own arithmetic rather than a copy
+    of it. The renderer widens a citation to word boundaries before printing,
+    so a narrower scan here would let it print an identifier the check never
+    saw — a citation ending mid-digit-run widens into a whole account number.
     """
     texts: list[tuple[str, str]] = []
     for finding in state.findings:
@@ -50,8 +56,9 @@ def _rendered_texts(state: RunState, context: RunContext) -> list[tuple[str, str
                     complaint = context.store.get_complaint(citation.complaint_id)
                 except KeyError:
                     continue
-                start = max(0, min(citation.start, len(complaint.text)))
-                end = max(start, min(citation.end, len(complaint.text)))
+                start, end = clamp_and_snap(
+                    complaint.text, citation.start, citation.end
+                )
                 texts.append(
                     (
                         f"{finding.finding_id}/{citation.complaint_id}",

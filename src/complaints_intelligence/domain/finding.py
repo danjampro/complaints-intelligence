@@ -41,8 +41,15 @@ FACT_PLACEHOLDER_RE = re.compile(r"\{\{?(f_\d{4})\}\}?")
 
 
 class FindingKind(StrEnum):
+    """What a finding is about.
+
+    There is deliberately no ``SENTIMENT`` member. Sentiment trends are
+    reported, but as figures carried from the metrics brief rather than as
+    findings — nothing in the graph authors them, and a variant no node can
+    produce would misdescribe the state machine.
+    """
+
     DRIVER = "driver"
-    SENTIMENT = "sentiment"
     EMERGING_THEME = "emerging_theme"
     REMEDIATION = "remediation"
 
@@ -89,7 +96,7 @@ class Finding(BaseModel):
     headline: str
     claims: tuple[Claim, ...]
 
-    #: Set on driver and sentiment findings.
+    #: Set on driver findings.
     category: str | None = None
     #: Set on emerging-theme findings.
     theme_id: str | None = None

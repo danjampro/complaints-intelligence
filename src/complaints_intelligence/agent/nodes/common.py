@@ -16,7 +16,7 @@ from complaints_intelligence.domain.brief import (
     MetricsBrief,
     SentimentSignal,
 )
-from complaints_intelligence.domain.fact import Fact
+from complaints_intelligence.domain.fact import Fact, FactUnit
 from complaints_intelligence.domain.trace import LLMCall
 from complaints_intelligence.logging import get_logger
 from complaints_intelligence.prompts.loader import load
@@ -84,6 +84,29 @@ def _fact_label(facts: dict[str, Fact], fact_id: str) -> str:
     return f"{fact_id} ({fact.label})" if fact else fact_id
 
 
+def _worked_form(fact: Fact, fact_id: str) -> str:
+    """A phrase showing where the reference sits once it becomes a number.
+
+    The placeholder is replaced by a figure at render time, so a reference
+    trailing the end of a clause renders as "...attempts were rejected 131."
+    The prompts state that rule and the model still broke it; stating a rule
+    asks the model to apply it, whereas a filled-in phrase gives it the shape
+    directly. The unit is what decides the shape, so it is derived here rather
+    than left for the model to infer from a unit name.
+    """
+    match fact.unit:
+        case FactUnit.PROPORTION:
+            return f"a change of {{{{{fact_id}}}}}"
+        case FactUnit.SENTIMENT_INDEX:
+            return f"moved to {{{{{fact_id}}}}}"
+        case FactUnit.GBP:
+            return f"redress of {{{{{fact_id}}}}}"
+        case FactUnit.DAYS:
+            return f"took {{{{{fact_id}}}}}"
+        case _:
+            return f"{{{{{fact_id}}}}} complaints"
+
+
 def format_facts(facts: dict[str, Fact], fact_ids: list[str]) -> str:
     """List fact IDs with their labels, for the prompt's fact block."""
     if not fact_ids:
@@ -93,7 +116,9 @@ def format_facts(facts: dict[str, Fact], fact_ids: list[str]) -> str:
         fact = facts.get(fact_id)
         if fact is None:
             continue
-        lines.append(f"- `{fact_id}` — {fact.label} [unit: {fact.unit.value}]")
+        lines.append(
+            f"- `{fact_id}` — {fact.label} — write as: {_worked_form(fact, fact_id)}"
+        )
     return "\n".join(lines) if lines else "(none available)"
 
 

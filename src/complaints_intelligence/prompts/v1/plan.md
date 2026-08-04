@@ -22,6 +22,12 @@ investigating this week, and in what order.
 Spending fewer categories does not buy you more themes, and vice versa. Fill
 each budget on its own merits.
 
+Use all **{max_investigations}** category slots unless fewer than that many
+categories genuinely merit attention. A category that was tested and did not
+reach significance is the right one to leave out, and saying so in `skipped`
+is what tells a reader it was examined rather than overlooked. Leaving a slot
+empty while a significant category goes uninvestigated is not.
+
 **Adjudicate every candidate theme the brief carried, up to the budget.** A
 category missed this week reappears next week in the trend table; an emerging
 theme nobody examined does not. Rejecting a theme as noise or as an artefact

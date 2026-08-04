@@ -63,6 +63,52 @@ class TestFactsResolve:
         assert not checks.check_facts_resolve([finding], store).passed
 
 
+class TestFactPlacement:
+    """A legitimate reference in a slot where it renders as a bare number.
+
+    Every other fact check passes on this text: the ID exists, resolves, and
+    no digit was typed. Substitution happens after verification, so without
+    this check nothing looks at the sentence the reader actually gets.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Complaints about failed transfers reached {{f_0001}} complaints.",
+            "Customers reported rejections across {{f_0001}} complaints.",
+            "The cluster covers {{f_0001}} complaints.",
+            "Branch closures were coincident with a total of {{f_0001}}.",
+            "Sentiment moved to {{f_0001}}.",
+        ],
+    )
+    def test_a_reference_with_something_to_count_passes(self, text: str):
+        assert checks.check_fact_placement([make_finding(text)]).passed
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            # The three shapes observed in real output.
+            "Customers reported that multiple attempts were rejected {{f_0001}}.",
+            "Customers faced late fees following the rejections {{f_0001}}.",
+            "The cluster shows high duplication among members {{f_0001}}.",
+        ],
+    )
+    def test_a_reference_trailing_a_clause_fails(self, text: str):
+        result = checks.check_fact_placement([make_finding(text)])
+        assert not result.passed
+        assert result.offending
+
+    def test_the_offence_names_its_finding(self):
+        """The revise loop routes on the finding ID prefix.
+
+        A check whose offences do not carry it fails the run and then repairs
+        nothing, because ``_failing_findings`` cannot match them.
+        """
+        finding = make_finding("Attempts were rejected {{f_0001}}.")
+        result = checks.check_fact_placement([finding])
+        assert result.offending[0].startswith(f"{finding.finding_id}:")
+
+
 class TestNoLiteralNumbers:
     def test_passes_with_only_placeholders(self):
         finding = make_finding("Customers report failed transfers {{f_0001}}.")

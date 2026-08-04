@@ -15,6 +15,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
+from complaints_intelligence.domain.brief import SentimentSignal
 from complaints_intelligence.domain.finding import Adjudication, Finding, Remediation
 from complaints_intelligence.domain.trace import RunTrace
 
@@ -77,7 +78,13 @@ class Report(BaseModel):
     status: ReportStatus = ReportStatus.DRAFT
 
     drivers: tuple[Finding, ...]
-    sentiment: tuple[Finding, ...]
+    #: Within-channel sentiment shifts, carried straight from the metrics
+    #: brief. Unlike every other section these are not findings, because no
+    #: model produced them: a sentiment trend is entirely figures, and figures
+    #: are the one thing the model may never author (invariant 1). Carrying
+    #: them on the report rather than reading the brief at render time is what
+    #: keeps the Markdown a projection of this object.
+    sentiment: tuple[SentimentSignal, ...]
     emerging: tuple[Finding, ...]
     adjudications: tuple[Adjudication, ...]
     remediations: tuple[Remediation, ...]

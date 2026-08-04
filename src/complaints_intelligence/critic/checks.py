@@ -15,6 +15,10 @@ Check                         Rationale
 ``no_literal_numbers``        The complement of the above. An ID that resolves
                               proves nothing if the model also typed "142"
                               next to it.
+``fact_placement``            Substitution happens after verification, so
+                              nothing else looks at the result. A legitimate
+                              reference in the wrong slot renders as
+                              "...attempts were rejected 131."
 ``citations_present``         Invariant 2. Two citations, not one: a single
                               complaint is an anecdote.
 ``citations_resolve``         Offsets must return the text they claim. This is
@@ -72,6 +76,35 @@ def strip_references(text: str) -> str:
 #: needs to state a bare number has a fact missing from the metrics layer, and
 #: that is a gap to fix upstream rather than an exception to grant here.
 _BARE_DIGIT_RE = re.compile(r"\d")
+
+#: The last word before a fact reference, for the placement check.
+_LAST_WORD_RE = re.compile(r"(\w+)\W*$")
+
+#: Words after which a bare figure reads correctly, so a reference may end a
+#: clause. Everything else trailing a clause renders as "...rejected 131."
+_FIGURE_INTRODUCERS = frozenset(
+    {
+        "to",
+        "of",
+        "at",
+        "by",
+        "from",
+        "reached",
+        "rose",
+        "fell",
+        "was",
+        "were",
+        "spans",
+        "covers",
+        "totalled",
+        "across",
+        "among",
+        "under",
+        "over",
+        "is",
+        "are",
+    }
+)
 
 # Written-out numbers. A model told not to type digits will otherwise write
 # "one hundred and forty-two" instead, which defeats the point.
@@ -212,6 +245,49 @@ def check_facts_resolve(findings: Sequence[Finding], facts: FactStore) -> Critic
             "every referenced fact ID resolves in the fact store"
             if not offending
             else f"{len(offending)} unresolvable fact reference(s)"
+        ),
+        offending=tuple(offending),
+    )
+
+
+def check_fact_placement(findings: Sequence[Finding]) -> CriticCheck:
+    """A fact reference sits where a number can grammatically stand.
+
+    The other fact checks ask whether a reference is *legitimate*. This one
+    asks whether the sentence still reads once it becomes a figure, because
+    substitution happens after verification and nothing else looks at the
+    result. A trailing reference passes every other check and renders as
+    "...multiple attempts were rejected 131."
+
+    The rule is narrow on purpose. A reference is well placed when a word
+    follows it — the noun it counts — or when the word before it is one that
+    introduces a figure. It fails only when the reference ends a clause with
+    no such word before it, which is the shape all the observed defects took
+    and none of the correct usages did.
+    """
+    offending: list[str] = []
+    for finding_id, text, _ in _claim_texts(findings):
+        for match in FACT_PLACEHOLDER_RE.finditer(text):
+            trailing = text[match.end() :].lstrip()
+            if trailing and trailing[0] not in ".,;:)":
+                continue  # A noun follows; the figure has something to count.
+
+            preceding = _LAST_WORD_RE.search(text[: match.start()])
+            if preceding and preceding.group(1).lower() in _FIGURE_INTRODUCERS:
+                continue
+
+            offending.append(
+                f"{finding_id}: {match.group(1)} ends a clause with nothing to "
+                f"count; it will render as a bare number"
+            )
+
+    return CriticCheck(
+        name="fact_placement",
+        passed=not offending,
+        detail=(
+            "every fact reference sits where a figure reads correctly"
+            if not offending
+            else f"{len(offending)} fact reference(s) would render as a bare number"
         ),
         offending=tuple(offending),
     )

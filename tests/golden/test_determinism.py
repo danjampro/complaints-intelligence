@@ -123,6 +123,37 @@ class TestFullRun:
             fact = store.get_fact(fact_id)
             assert fact.render() in markdown
 
+    def test_the_sentiment_section_is_rendered_from_the_fact_store(
+        self, run, store: DuckDBStore
+    ):
+        """The one section with no model in its lineage.
+
+        Sentiment trends are entirely figures, so they are carried from the
+        metrics brief rather than drafted. This asserts the whole path: the
+        signals reach the report object, and every figure printed against them
+        is the store's own value.
+        """
+        report, markdown = run
+        assert report.sentiment, "the planted sentiment shift should reach the report"
+
+        for signal in report.sentiment:
+            for fact_id in (
+                signal.baseline_fact_id,
+                signal.current_fact_id,
+                signal.shift_fact_id,
+            ):
+                assert store.get_fact(fact_id).render() in markdown
+
+    def test_no_finding_claims_to_be_a_sentiment_trend(self, run):
+        """Sentiment is not a finding kind, and nothing should mint one.
+
+        The section is deliberately outside the graph. A finding carrying a
+        sentiment trend would mean a model authored a figure.
+        """
+        report, _ = run
+        kinds = {f.kind for f in (*report.drivers, *report.emerging)}
+        assert all(kind.value != "sentiment" for kind in kinds)
+
     def test_every_quotation_matches_its_source(self, run, store: DuckDBStore):
         """Invariant 2, checked at the output.
 
@@ -178,6 +209,22 @@ class TestFullRun:
         assert "payments_failed" in {f.category for f in report.drivers}
         assert "CT-007" in {f.theme_id for f in report.emerging}
         assert "CT-012" not in {f.theme_id for f in report.emerging}
+
+    def test_the_investigation_budget_drops_the_noise_category(
+        self, run, settings: Settings
+    ):
+        """The five genuine movements fill the budget; the decoy is what falls.
+
+        Six categories are flagged against five investigation slots, so the
+        cap binds. Which category it excludes is the whole point: a report
+        that investigated the movement that failed its significance test, and
+        left out one that passed, would be reporting noise as a driver.
+        """
+        report, _ = run
+        categories = {f.category for f in report.drivers}
+
+        assert len(report.drivers) == settings.budget.max_investigations
+        assert "statement_errors" not in categories
 
     def test_rejected_themes_are_still_reported(self, run):
         """A theme dismissed silently is indistinguishable from one never seen."""

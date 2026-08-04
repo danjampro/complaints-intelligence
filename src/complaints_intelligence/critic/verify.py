@@ -36,6 +36,7 @@ def verify(
     results = (
         checks.check_facts_resolve(findings, facts),
         checks.check_no_literal_numbers(findings),
+        checks.check_fact_placement(findings),
         checks.check_citations_present(findings, thresholds),
         checks.check_citations_resolve(findings, complaints),
         checks.check_no_causal_language(findings),

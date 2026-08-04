@@ -58,10 +58,15 @@ standard as any other claim, so all of the following apply to it.
    - Correct: `The cluster spans several channels and has persisted.`
    - Rejected: `The cluster has 34 members across 3 channels over 3 weeks.`
 
-   If you do reference a figure, put it where the number belongs
-   grammatically — it is replaced by one, so the sentence must still read
-   correctly. `The cluster covers {{f_0191}} complaints.` is right;
-   `members used distinct wording {{f_0191}}.` is not.
+   If you do reference a figure, use the phrasing given for it in the fact
+   block — each entry ends with `write as:` and a worked phrase. The reference
+   is replaced by a number, so it is almost always followed by the noun it
+   counts, and never left trailing on the end of a clause.
+
+   - Correct: `The cluster covers {{f_0191}} complaints.`
+   - Wrong: `Members used distinct wording {{f_0191}}.`
+   - Wrong: `The cluster shows high duplication among members {{f_0192}}.`
+     (renders as "...duplication among members 28.")
 2. **No causal language.** Permitted: "coincident with", "alongside",
    "following". Rejected: "caused by", "causing", "because of", "due to",
    "resulted in", "driven by", "stems from". Describe what the evidence

@@ -47,7 +47,37 @@ _No driver findings were produced for this week._
 
 ---
 
-## 2 · Emerging risk themes
+## 2 · Sentiment trends vs {{ report.baseline_week }}
+
+{% if sentiment %}
+| Category | Channel | {{ report.baseline_week }} | {{ report.week }} | Shift |
+|---|---|---|---|---|
+{% for signal in sentiment %}
+| {{ signal.scope_display }} | {{ signal.channel_display }} | {{ signal.baseline }} | {{ signal.current }} | {{ signal.shift }} |
+{% endfor %}
+
+Sentiment runs from `-1` to `+1` and is compared **within channel**, never
+pooled across channels: a category whose complaints shift from the app to the
+call centre would otherwise appear to change tone when only its channel mix
+moved.
+
+A row appears here only if it cleared **both** gates — a Welch test under the
+same false-discovery-rate control as the volume tests, *and* a minimum shift
+size. Significance alone surfaces trivially small moves in large cells; a
+threshold alone surfaces sampling noise in small ones.
+{% else %}
+_No sentiment shift cleared both the test and the minimum shift size this
+week. This is a tested result, not an absence of measurement: every channel
+and category cell was compared against {{ report.baseline_week }}._
+{% endif %}
+
+Every figure in this section came from the fact store by ID. No model was
+involved in producing this section at all — a sentiment trend is entirely
+figures, and figures are the one thing the model may never author.
+
+---
+
+## 3 · Emerging risk themes
 
 Themes below are clusters of complaints that matched no existing category.
 They are reported as narrative with evidence and **are not counted in the
@@ -90,7 +120,7 @@ _No candidate themes were carried into this run._
 
 ---
 
-## 3 · Remediation recommendations
+## 4 · Remediation recommendations
 
 Recommendations are grounded in how comparable complaints were **actually
 resolved**, retrieved from resolution notes on closed cases. They are not
@@ -137,7 +167,7 @@ _No recommendation was grounded in transferable precedent this week._
 
 ---
 
-## 4 · Verification
+## 5 · Verification
 
 Every check below is programmatic. No model was involved in verifying this
 report.
@@ -167,7 +197,7 @@ The following degradations were recorded. They are part of the record.
 
 ---
 
-## 5 · Provenance
+## 6 · Provenance
 
 This report is reconstructable from the pinned versions below plus the fact
 store for run `{{ report.run_id }}`.

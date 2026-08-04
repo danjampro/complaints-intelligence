@@ -43,9 +43,14 @@ report say what was considered and ruled out. Do not silently drop them.
    times appear in the metadata below for your judgement; do not copy them
    into your text.
 
-   Put the reference where the number belongs grammatically. It is replaced
-   by a figure, so the sentence must still read correctly once it is — not
+   **Use the phrasing given for each fact.** Every entry in the fact block
+   ends with `write as:` and a worked phrase. Use it. The reference becomes a
+   figure, so the sentence must still read correctly once it does — the
+   reference is almost always followed by the noun it counts, and never left
    trailing on the end like a citation.
+
+   - Correct: `Identify affected customers across {{f_0191}} complaints.`
+   - Wrong: `Identify affected members across {{f_0191}} using a query.`
 2. **No causal language.** "Coincident with" is permitted; "caused by" is not.
 3. Cite the specific closed complaints your recommendation rests on. A
    citation is a `complaint_id` plus the character offsets of the span you are

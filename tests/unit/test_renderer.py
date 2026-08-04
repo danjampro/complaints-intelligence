@@ -98,16 +98,16 @@ class TestQuotationResolution:
             query_text="payment failed", week="2026-W31", limit=1
         )[0]
         citation = Citation(complaint_id=complaint.complaint_id, start=3, end=25)
-        quote, resolved = resolve_quote(citation, store)
-        assert quote
-        assert quote in resolved.text
+        resolved = resolve_quote(citation, store)
+        assert resolved.text
+        assert resolved.text in resolved.complaint.text
 
     def test_a_quote_does_not_end_mid_word(self, store: DuckDBStore):
         complaint = store.exemplars(
             query_text="payment failed", week="2026-W31", limit=1
         )[0]
         citation = Citation(complaint_id=complaint.complaint_id, start=3, end=20)
-        quote, _ = resolve_quote(citation, store)
+        quote = resolve_quote(citation, store).text
         assert not quote.endswith(("explanat", "explana"))
         # The character after the quote in the source is whitespace or the end.
         index = complaint.text.index(quote) + len(quote)
@@ -118,7 +118,50 @@ class TestQuotationResolution:
             query_text="payment failed", week="2026-W31", limit=1
         )[0]
         citation = Citation(complaint_id=complaint.complaint_id, start=0, end=99_000)
-        quote, _ = resolve_quote(citation, store)
+        quote = resolve_quote(citation, store).text
         # Clamped to the stored text. A long complaint is then truncated for
         # the report, so the ellipsis is expected and is not stored text.
         assert complaint.text.startswith(quote.removesuffix("…"))
+
+    @pytest.mark.parametrize(
+        ("start", "end"),
+        [(3, 25), (0, 12), (9, 57), (17, 18), (0, 99_000), (40, 41)],
+    )
+    def test_the_published_offsets_produce_the_published_quote(
+        self, store: DuckDBStore, start: int, end: int
+    ):
+        """The range printed beside a quotation must be the range that yields it.
+
+        The offsets are what a reviewer uses to check a quotation against the
+        source. Publishing the model's requested span while printing a widened
+        one made every citation label subtly wrong — two citations in the same
+        report claimed the same range for quotations of different lengths.
+        """
+        complaint = store.exemplars(
+            query_text="payment failed", week="2026-W31", limit=1
+        )[0]
+        citation = Citation(complaint_id=complaint.complaint_id, start=start, end=end)
+        resolved = resolve_quote(citation, store)
+
+        printed = resolved.text.removesuffix("…")
+        assert complaint.text[resolved.start : resolved.end] == printed
+
+    @pytest.mark.parametrize(("start", "end"), [(9, 57), (3, 25), (17, 30)])
+    def test_the_quote_still_contains_everything_cited(
+        self, store: DuckDBStore, start: int, end: int
+    ):
+        """Adjusting the span for whitespace must not drop cited content.
+
+        The published span moves inward when the widened slice begins or ends
+        on whitespace. That is presentation only — the words the model cited
+        all survive, which is what stops the offset bookkeeping from quietly
+        narrowing a quotation and changing its sense.
+        """
+        complaint = store.exemplars(
+            query_text="payment failed", week="2026-W31", limit=1
+        )[0]
+        citation = Citation(complaint_id=complaint.complaint_id, start=start, end=end)
+        resolved = resolve_quote(citation, store)
+
+        cited = complaint.text[start:end].strip()
+        assert cited in resolved.text

@@ -20,10 +20,12 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
+from typing import NamedTuple
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from complaints_intelligence.config import PACKAGE_ROOT
+from complaints_intelligence.domain.brief import SentimentSignal
 from complaints_intelligence.domain.complaint import ComplaintEnvelope
 from complaints_intelligence.domain.finding import (
     FACT_PLACEHOLDER_RE,
@@ -35,10 +37,15 @@ from complaints_intelligence.domain.finding import (
 from complaints_intelligence.domain.report import Report
 from complaints_intelligence.errors import ProvenanceError
 from complaints_intelligence.logging import get_logger
+from complaints_intelligence.render.spans import clamp_and_snap, snap_to_words
 from complaints_intelligence.store.protocols import ComplaintRepository, FactStore
 from complaints_intelligence.synth.taxonomy import display_name
 
 log = get_logger(__name__)
+
+#: Kept as a module-level name here because the span arithmetic is part of the
+#: renderer's contract even though it now lives with the critic's copy.
+_snap_to_words = snap_to_words
 
 _TEMPLATE_DIR = PACKAGE_ROOT / "render" / "templates"
 
@@ -91,50 +98,59 @@ def resolve_text(text: str, facts: FactStore, *, strict: bool = True) -> str:
     return _BRACED_IDENTIFIER_RE.sub(r"\1", _PLACEHOLDER_RE.sub(substitute, text))
 
 
-def _snap_to_words(text: str, start: int, end: int) -> tuple[int, int]:
-    """Widen a span outward to the nearest word boundaries.
+class ResolvedQuote(NamedTuple):
+    """A quotation and the span it was actually taken from.
 
-    Models pick offsets approximately, and a quotation cut mid-word — "the
-    transfer failed without any explanat" — reads as a defect in the report
-    rather than in the citation.
+    ``start`` and ``end`` are the *printed* span, not the one the model asked
+    for: clamped into the text, widened to word boundaries, then narrowed again
+    by whatever stripping and truncation the quotation underwent. The invariant
+    a reader depends on is ``complaint.text[start:end] == text`` — the range
+    printed beside a quotation must be the range that produces it.
 
-    Widening only. The span still covers everything the model cited, so the
-    quotation cannot be narrowed to change its sense; it can only gain the
-    rest of a word it already partly covered.
+    The model's original offsets are untouched on the ``Citation`` carried by
+    the report object, so the drill-down is unaffected.
     """
-    while start > 0 and not text[start - 1].isspace():
-        start -= 1
-    while end < len(text) and not text[end - 1].isspace() and not text[end].isspace():
-        end += 1
-    return start, end
+
+    text: str
+    complaint: ComplaintEnvelope
+    start: int
+    end: int
 
 
-def resolve_quote(
-    citation: Citation, complaints: ComplaintRepository
-) -> tuple[str, ComplaintEnvelope]:
+def resolve_quote(citation: Citation, complaints: ComplaintRepository) -> ResolvedQuote:
     """Pull the quoted span out of the stored complaint text."""
     complaint = complaints.get_complaint(citation.complaint_id)
-    start = max(0, min(citation.start, len(complaint.text)))
-    end = max(start, min(citation.end, len(complaint.text)))
-    start, end = _snap_to_words(complaint.text, start, end)
+    start, end = clamp_and_snap(complaint.text, citation.start, citation.end)
 
-    quote = complaint.text[start:end].strip()
+    # Stripping and truncation both change which characters survive into the
+    # report, so both have to move the published span with them. Tracking the
+    # offsets through each step is what keeps the printed range honest.
+    raw = complaint.text[start:end]
+    start += len(raw) - len(raw.lstrip())
+    end -= len(raw) - len(raw.rstrip())
+    quote = complaint.text[start:end]
+
     if len(quote) > _MAX_QUOTE_CHARS:
-        quote = quote[: _MAX_QUOTE_CHARS - 1].rstrip() + "…"
-    return quote, complaint
+        truncated = quote[: _MAX_QUOTE_CHARS - 1].rstrip()
+        end = start + len(truncated)
+        # The ellipsis is a rendering mark rather than quoted text, so it sits
+        # outside the span the offsets describe.
+        return ResolvedQuote(truncated + "…", complaint, start, end)
+
+    return ResolvedQuote(quote, complaint, start, end)
 
 
 class RenderedCitation:
     """A citation with its quote and channel resolved, ready for templating."""
 
     def __init__(self, citation: Citation, complaints: ComplaintRepository) -> None:
-        quote, complaint = resolve_quote(citation, complaints)
+        resolved = resolve_quote(citation, complaints)
         self.complaint_id = citation.complaint_id
-        self.start = citation.start
-        self.end = citation.end
-        self.quote = quote
-        self.channel = complaint.channel.value
-        self.week = complaint.week
+        self.start = resolved.start
+        self.end = resolved.end
+        self.quote = resolved.text
+        self.channel = resolved.complaint.channel.value
+        self.week = resolved.complaint.week
 
 
 class RenderedClaim:
@@ -258,6 +274,33 @@ class RenderedRemediation:
         self.rejected = [p for p in remediation.precedents if not p.transfers]
 
 
+class RenderedSentiment:
+    """One within-channel sentiment shift, ready for templating.
+
+    No model touched any part of this. The three figures are looked up by fact
+    ID exactly as a claim's placeholders are, so the section is subject to the
+    same provenance rule as the rest of the report while requiring none of the
+    machinery that exists to constrain model output.
+
+    Resolution is unconditionally strict. These IDs come from the metrics
+    layer, never from a model, so there is no unverified-draft case to be
+    lenient about: one that fails to resolve means the fact store changed under
+    the run, which must stop the report rather than leave a gap in it.
+    """
+
+    def __init__(self, signal: SentimentSignal, facts: FactStore) -> None:
+        self.scope = signal.scope
+        self.scope_display = display_name(signal.scope)
+        self.channel = signal.channel
+        self.channel_display = (
+            signal.channel.replace("_", " ") if signal.channel else "all channels"
+        )
+        self.direction = signal.direction.value
+        self.current = facts.get_fact(signal.current_fact_id).render()
+        self.baseline = facts.get_fact(signal.baseline_fact_id).render()
+        self.shift = facts.get_fact(signal.shift_fact_id).render()
+
+
 def render_markdown(
     report: Report,
     *,
@@ -285,6 +328,7 @@ def render_markdown(
         drivers=[
             RenderedFinding(f, facts, complaints, strict=strict) for f in report.drivers
         ],
+        sentiment=[RenderedSentiment(s, facts) for s in report.sentiment],
         emerging=[
             RenderedFinding(f, facts, complaints, strict=strict)
             for f in report.emerging
@@ -294,8 +338,7 @@ def render_markdown(
             for r in report.remediations
         ],
         adjudications=[
-            RenderedAdjudication(a, facts, strict=strict)
-            for a in report.adjudications
+            RenderedAdjudication(a, facts, strict=strict) for a in report.adjudications
         ],
         generated_at=report.generated_at.strftime("%Y-%m-%d %H:%M UTC"),
     )

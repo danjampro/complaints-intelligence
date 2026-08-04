@@ -92,7 +92,9 @@ def run_week(
         # in this package performs that transition.
         status=ReportStatus.DRAFT,
         drivers=tuple(f for f in final.findings if f.kind is FindingKind.DRIVER),
-        sentiment=tuple(f for f in final.findings if f.kind is FindingKind.SENTIMENT),
+        # Straight from the brief, untouched by the graph. Every figure was
+        # computed by the metrics layer and is referenced by fact ID.
+        sentiment=brief.sentiment_signals,
         emerging=tuple(
             f for f in final.findings if f.kind is FindingKind.EMERGING_THEME
         ),

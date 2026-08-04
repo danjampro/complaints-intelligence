@@ -50,6 +50,7 @@ def _run(
     [
         ("bad_fact", "facts_resolve"),
         ("literal_number", "no_literal_numbers"),
+        ("fact_placement", "fact_placement"),
         ("one_citation", "citations_present"),
         ("bad_offsets", "citations_resolve"),
         ("causal", "no_causal_language"),
@@ -70,7 +71,8 @@ def test_an_unrepaired_defect_fails_the_expected_check(
 
 
 @pytest.mark.parametrize(
-    "defect", ["bad_fact", "literal_number", "one_citation", "causal", "pii"]
+    "defect",
+    ["bad_fact", "literal_number", "fact_placement", "one_citation", "causal", "pii"],
 )
 def test_the_revise_loop_repairs_a_defect_in_a_driver_finding(
     settings: Settings, store: DuckDBStore, brief: MetricsBrief, defect: str
