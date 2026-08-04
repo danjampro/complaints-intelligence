@@ -453,6 +453,17 @@ def _plant_adversarial(
     return planted
 
 
+def _redress_for(rng: Generator, outcome: Outcome) -> int:
+    """Redress band for an outcome where the action describes a payment."""
+    match outcome:
+        case Outcome.UPHELD:
+            return int(rng.integers(50, 500))
+        case Outcome.PARTIALLY_UPHELD:
+            return int(rng.integers(25, 200))
+        case _:
+            return 0
+
+
 def _generate_resolutions(
     rng: Generator, complaints: list[ComplaintEnvelope]
 ) -> list[ResolutionNote]:
@@ -461,6 +472,17 @@ def _generate_resolutions(
     These are the sole knowledge source for remediation recommendations, so
     the action vocabulary is concrete and per-category: the report should be
     able to say what was actually done, not offer generic advice.
+
+    The outcome is sampled first and the prose chosen to match it, rather than
+    the two being drawn beside each other. Independent draws produced notes
+    that contradicted themselves — a verdict of ``not_upheld`` with no redress
+    recorded, above text describing a refund and a goodwill payment. The
+    remediation node shows both to the model and asks it to judge whether the
+    precedent transfers, partly on whether the outcome shows the action
+    worked, so an incoherent note makes that judgement meaningless.
+
+    Redress follows the prose for the same reason: a figure is only recorded
+    where the action says money changed hands.
     """
     notes: list[ResolutionNote] = []
     for complaint in complaints:
@@ -474,23 +496,20 @@ def _generate_resolutions(
         outcome = _OUTCOMES[
             int(rng.choice(len(_OUTCOMES), p=np.asarray(_OUTCOME_WEIGHTS)))
         ]
-        match outcome:
-            case Outcome.UPHELD:
-                redress = int(rng.integers(50, 500))
-            case Outcome.PARTIALLY_UPHELD:
-                redress = int(rng.integers(25, 200))
-            case _:
-                redress = 0
+        # Every category carries an action for every outcome, so this is never
+        # empty; a category that lost one would otherwise silently stop
+        # producing that verdict.
+        candidates = tuple(a for a in actions if a.outcome is outcome)
+        action = candidates[int(rng.integers(len(candidates)))]
 
-        action = str(rng.choice(np.asarray(actions)))
         notes.append(
             ResolutionNote(
                 complaint_id=complaint.complaint_id,
                 category=category,
                 outcome=outcome,
-                redress_gbp=redress,
+                redress_gbp=_redress_for(rng, outcome) if action.pays_redress else 0,
                 days_to_close=int(rng.integers(4, 46)),
-                text=f"Outcome: {outcome.value.replace('_', ' ')}. {action}",
+                text=f"Outcome: {outcome.value.replace('_', ' ')}. {action.text}",
             )
         )
     return notes

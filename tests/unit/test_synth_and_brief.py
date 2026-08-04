@@ -11,12 +11,13 @@ import pytest
 
 from complaints_intelligence.config import BASELINE_WEEK, REPORTING_WEEK, Settings
 from complaints_intelligence.domain.brief import Direction, MetricsBrief
-from complaints_intelligence.domain.complaint import RoutingDecision
+from complaints_intelligence.domain.complaint import Outcome, RoutingDecision
 from complaints_intelligence.prompts.loader import load, load_all, prompt_hashes
 from complaints_intelligence.store.duckdb_store import DuckDBStore
 from complaints_intelligence.synth import signals as sig
 from complaints_intelligence.synth.generator import Dataset
 from complaints_intelligence.synth.taxonomy import CATEGORIES, get_node
+from complaints_intelligence.synth.templates import RESOLUTION_ACTIONS
 
 
 class TestPlantedVolumes:
@@ -123,6 +124,79 @@ class TestCorpusIntegrity:
     def test_complaint_ids_are_unique(self, dataset: Dataset):
         ids = [c.complaint_id for c in dataset.complaints]
         assert len(ids) == len(set(ids))
+
+
+class TestResolutionNoteConsistency:
+    """A note must not contradict itself.
+
+    The remediation node shows the model the outcome, the redress figure and
+    the prose together, and asks it to judge whether the precedent transfers —
+    partly on whether the outcome shows the action worked. A note whose
+    structured fields disagree with its own text makes that judgement
+    meaningless, and puts trusted store columns in conflict with untrusted
+    prose with no rule available for choosing between them.
+    """
+
+    def test_every_note_agrees_with_the_action_it_came_from(self, dataset: Dataset):
+        """The verdict and the money both follow the prose, not a separate draw.
+
+        This is the regression test: before the actions were tagged, outcome
+        and prose were independent and roughly a quarter of the corpus
+        contradicted itself.
+        """
+        by_text = {
+            action.text: action
+            for actions in RESOLUTION_ACTIONS.values()
+            for action in actions
+        }
+        checked = 0
+        for note in dataset.resolutions:
+            matched = next(
+                (a for text, a in by_text.items() if note.text.endswith(text)), None
+            )
+            assert matched is not None, f"{note.complaint_id}: prose is not in the pool"
+            assert matched.outcome is note.outcome, (
+                f"{note.complaint_id}: recorded {note.outcome.value} but the prose "
+                f"describes {matched.outcome.value}"
+            )
+            assert (note.redress_gbp > 0) is matched.pays_redress, (
+                f"{note.complaint_id}: redress_gbp={note.redress_gbp} but the prose "
+                f"{'describes' if matched.pays_redress else 'describes no'} payment"
+            )
+            checked += 1
+        assert checked > 100, "too few notes to be meaningful"
+
+    def test_every_category_can_produce_every_outcome(self):
+        """Otherwise a category silently stops producing rejected precedents.
+
+        The generator filters the pool by the outcome it drew, so a missing
+        slot would leave it with nothing to choose from — and a category that
+        can never yield a not-upheld note can never demonstrate a precedent
+        considered and ruled out.
+        """
+        for category in CATEGORIES:
+            available = {a.outcome for a in RESOLUTION_ACTIONS[category]}
+            missing = set(Outcome) - available
+            assert not missing, (
+                f"{category} cannot produce {sorted(m.value for m in missing)}"
+            )
+
+    def test_a_rejected_complaint_never_describes_a_payment(self):
+        """Read over the pool rather than the sampled corpus.
+
+        A blunt instrument, in the same spirit as the choke-point source
+        audits: the failure mode is a future edit that writes remediation
+        prose into a not-upheld slot, and that survives every test that only
+        looks at the fields.
+        """
+        money = ("goodwill", "compensation", "refund", "reinstated", "payment made")
+        for category, actions in RESOLUTION_ACTIONS.items():
+            for action in actions:
+                if action.outcome is not Outcome.NOT_UPHELD:
+                    continue
+                assert not action.pays_redress, f"{category}: not-upheld pays redress"
+                found = [word for word in money if word in action.text.lower()]
+                assert not found, f"{category}: not-upheld prose mentions {found}"
 
 
 class TestBrief:

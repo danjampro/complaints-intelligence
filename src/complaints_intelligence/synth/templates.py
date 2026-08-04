@@ -14,7 +14,9 @@ transcript do not sound alike.
 
 from __future__ import annotations
 
-from complaints_intelligence.domain.complaint import Channel
+from dataclasses import dataclass
+
+from complaints_intelligence.domain.complaint import Channel, Outcome
 
 # --------------------------------------------------------------------------
 # Per-category subject matter. The first clause is the grievance, the second
@@ -330,96 +332,344 @@ def channel_register(channel: Channel, text: str) -> str:
 # Resolution notes. The sole knowledge source for remediation, so the action
 # vocabulary is per-category and concrete.
 # --------------------------------------------------------------------------
-RESOLUTION_ACTIONS: dict[str, tuple[str, ...]] = {
+
+
+@dataclass(frozen=True)
+class ResolutionAction:
+    """One recorded action, tagged with the outcome its prose describes.
+
+    The tag exists because the prose is not neutral: it already says whether
+    the complaint was upheld and whether money changed hands. Drawing an
+    outcome beside it rather than reading it off produces notes that
+    contradict their own structured fields — a note stamped ``not_upheld``
+    with ``redress_gbp=0`` whose text describes refunding the customer. The
+    remediation prompt asks the model to weigh exactly that, so the fixture
+    has to be coherent for the judgement to mean anything.
+    """
+
+    outcome: Outcome
+    #: Whether the prose describes money changing hands. Carried separately
+    #: from ``outcome`` because it does not follow from it: a complaint can be
+    #: upheld and remedied without redress, and several of these are.
+    pays_redress: bool
+    text: str
+
+
+#: One action per (category, outcome), so the outcome can be sampled at its
+#: intended rate and the prose chosen to match. Every category therefore has a
+#: rejected precedent available, which is what makes "we looked and it did not
+#: transfer" a reportable outcome rather than a gap.
+RESOLUTION_ACTIONS: dict[str, tuple[ResolutionAction, ...]] = {
     "payments_failed": (
-        "Payment traced and re-presented manually. Failure attributed to a "
-        "timeout in the payments gateway during the release window. Customer "
-        "refunded the late fee on production of evidence and a goodwill "
-        "payment made. Gateway timeout raised with the payments engineering team.",
-        "Confirmed the duplicate debit and reversed the second collection same "
-        "day. Root cause was a retry that did not check for an existing "
-        "reference. Fix deployed; affected customers identified by query and "
-        "proactively refunded.",
-        "Investigation found the payment was correctly rejected because the "
-        "payee details did not match. Not upheld, but the error message was "
-        "unclear and has been rewritten. Customer given a written explanation.",
+        ResolutionAction(
+            Outcome.UPHELD,
+            True,
+            "Payment traced and re-presented manually. Failure attributed to a "
+            "timeout in the payments gateway during the release window. Customer "
+            "refunded the late fee on production of evidence and a goodwill "
+            "payment made. Gateway timeout raised with the payments engineering "
+            "team.",
+        ),
+        ResolutionAction(
+            Outcome.UPHELD,
+            True,
+            "Confirmed the duplicate debit and reversed the second collection same "
+            "day. Root cause was a retry that did not check for an existing "
+            "reference. Fix deployed; affected customers identified by query and "
+            "proactively refunded.",
+        ),
+        ResolutionAction(
+            Outcome.PARTIALLY_UPHELD,
+            True,
+            "The payment itself was correctly rejected, but the customer was not "
+            "told for two working days and the failure notice went to a dormant "
+            "inbox. Notification routing corrected and the charge arising from "
+            "the delay refunded. The underlying rejection stands.",
+        ),
+        ResolutionAction(
+            Outcome.NOT_UPHELD,
+            False,
+            "Investigation found the payment was correctly rejected because the "
+            "payee details did not match the beneficiary record. The error "
+            "message was unclear and has been rewritten; the customer was given "
+            "a written explanation and shown how to verify payee details before "
+            "submitting.",
+        ),
     ),
     "card_fraud_handling": (
-        "Provisional credit reinstated within 24 hours of review. The original "
-        "decision had been taken without reviewing the device evidence. Case "
-        "handler retrained and the review checklist updated to require device "
-        "data before rejection.",
-        "Disputed transactions refunded in full and card reissued. Delay was "
-        "caused by the case sitting unallocated in a queue; queue monitoring "
-        "alert added at the five-day mark.",
+        ResolutionAction(
+            Outcome.UPHELD,
+            True,
+            "Provisional credit reinstated within 24 hours of review. The original "
+            "decision had been taken without reviewing the device evidence. Case "
+            "handler retrained and the review checklist updated to require device "
+            "data before rejection.",
+        ),
+        ResolutionAction(
+            Outcome.PARTIALLY_UPHELD,
+            True,
+            "Disputed transactions refunded in full and card reissued. Delay was "
+            "caused by the case sitting unallocated in a queue; queue monitoring "
+            "alert added at the five-day mark. The initial decision to investigate "
+            "rather than refund immediately was correct on the evidence held.",
+        ),
+        ResolutionAction(
+            Outcome.NOT_UPHELD,
+            False,
+            "Device and location evidence placed the disputed transactions with "
+            "the registered handset, and the card was not reported lost. The "
+            "dispute decision stands. Customer given the evidence relied on and "
+            "referred to the ombudsman route.",
+        ),
     ),
     "card_declines": (
-        "Block was applied by fraud rules and no notification was sent due to "
-        "an out-of-date mobile number. Number updated and customer advised how "
-        "to maintain contact details. Goodwill payment made for the "
-        "inconvenience.",
+        ResolutionAction(
+            Outcome.UPHELD,
+            True,
+            "Block was applied by fraud rules and no notification was sent due to "
+            "an out-of-date mobile number. Number updated and customer advised how "
+            "to maintain contact details. Goodwill payment made for the "
+            "inconvenience.",
+        ),
+        ResolutionAction(
+            Outcome.PARTIALLY_UPHELD,
+            False,
+            "The block itself was correctly applied under the travel rules, but "
+            "the customer had notified us of the trip and the note was not "
+            "attached to the card record. Note-linking corrected and the block "
+            "lifted on the call. No charge arose.",
+        ),
+        ResolutionAction(
+            Outcome.NOT_UPHELD,
+            False,
+            "Declines were caused by insufficient available balance on the dates "
+            "in question, not by any block applied by the firm. Statement extract "
+            "provided and the available-balance display explained.",
+        ),
     ),
     "mortgage_arrears_support": (
-        "Arrangement to pay agreed over 24 months and arrears fees refunded "
-        "from the date support was first requested. The initial request had "
-        "not been logged as a forbearance enquiry; call handling guidance "
-        "updated and the file marked for vulnerability support.",
-        "Referred to the specialist support team who agreed a payment "
-        "concession. Possession action suspended. Compensation paid for "
-        "distress caused by the delay in assessing affordability.",
+        ResolutionAction(
+            Outcome.UPHELD,
+            True,
+            "Arrangement to pay agreed over 24 months and arrears fees refunded "
+            "from the date support was first requested. The initial request had "
+            "not been logged as a forbearance enquiry; call handling guidance "
+            "updated and the file marked for vulnerability support.",
+        ),
+        ResolutionAction(
+            Outcome.PARTIALLY_UPHELD,
+            True,
+            "Referred to the specialist support team who agreed a payment "
+            "concession. Possession action suspended. Compensation paid for "
+            "distress caused by the delay in assessing affordability, though the "
+            "affordability assessment itself was carried out correctly.",
+        ),
+        ResolutionAction(
+            Outcome.NOT_UPHELD,
+            False,
+            "Forbearance was offered at each contact and declined; the arrears "
+            "position and the fees applied were both correct under the mortgage "
+            "conditions. Support options set out again in writing and the file "
+            "left open for the customer to take them up.",
+        ),
     ),
     "overdraft_fees": (
-        "Charges refunded in full for the period where no pre-notification was "
-        "sent. Notification failure traced to a suppressed alerting flag on the "
-        "account. Flag cleared and a query run to identify other affected "
-        "accounts.",
-        "Fees found to be correctly applied and clearly disclosed. Not upheld. "
-        "Customer offered a review of account options better suited to their "
-        "usage.",
+        ResolutionAction(
+            Outcome.UPHELD,
+            True,
+            "Charges refunded in full for the period where no pre-notification was "
+            "sent. Notification failure traced to a suppressed alerting flag on the "
+            "account. Flag cleared and a query run to identify other affected "
+            "accounts.",
+        ),
+        ResolutionAction(
+            Outcome.PARTIALLY_UPHELD,
+            True,
+            "Pre-notification was sent for two of the four charges. The two "
+            "unnotified charges were refunded; the remainder stand. Alerting "
+            "coverage gap raised with the servicing team.",
+        ),
+        ResolutionAction(
+            Outcome.NOT_UPHELD,
+            False,
+            "Fees were correctly applied and clearly disclosed, and each was "
+            "pre-notified to the registered contact details. Customer offered a "
+            "review of account options better suited to their usage.",
+        ),
     ),
     "app_login": (
-        "Device registration record was corrupted and was cleared, restoring "
-        "access. Underlying defect fixed in the following release. Customer "
-        "given a direct contact while the issue persisted.",
-        "Verification messages were failing to a ported number. Routed via an "
-        "alternative provider and delivery confirmed. Goodwill payment made.",
+        ResolutionAction(
+            Outcome.UPHELD,
+            False,
+            "Device registration record was corrupted and was cleared, restoring "
+            "access. Underlying defect fixed in the following release. Customer "
+            "given a direct contact while the issue persisted.",
+        ),
+        ResolutionAction(
+            Outcome.PARTIALLY_UPHELD,
+            True,
+            "Verification messages were failing to a ported number. Routed via an "
+            "alternative provider and delivery confirmed. Goodwill payment made "
+            "for the period without access; the security step that caused it was "
+            "operating as designed.",
+        ),
+        ResolutionAction(
+            Outcome.NOT_UPHELD,
+            False,
+            "Access was blocked by repeated incorrect passcode entry, which is the "
+            "documented behaviour. Identity re-verified in branch and access "
+            "restored the same day. Passcode reset guidance sent.",
+        ),
     ),
     "branch_closure": (
-        "Closure confirmed as proceeding; decision not reversed. Customer "
-        "referred to the local Post Office banking service and a home visit "
-        "arranged to set up telephone banking. Communication of the closure "
-        "found to be inadequate and the notice process revised.",
+        ResolutionAction(
+            Outcome.UPHELD,
+            False,
+            "Closure notice was not issued to this customer at all owing to a gap "
+            "in the mailing extract. Personal apology issued, a home visit "
+            "arranged to set up telephone banking, and the extract logic corrected "
+            "before the next closure programme.",
+        ),
+        ResolutionAction(
+            Outcome.PARTIALLY_UPHELD,
+            False,
+            "Closure confirmed as proceeding; decision not reversed. Customer "
+            "referred to the local Post Office banking service and a home visit "
+            "arranged to set up telephone banking. Communication of the closure "
+            "found to be inadequate and the notice process revised.",
+        ),
+        ResolutionAction(
+            Outcome.NOT_UPHELD,
+            False,
+            "Closure decision follows a documented review of branch usage and is "
+            "not reversible on individual request. Statutory notice was given in "
+            "branch and by post within the required period. Alternative access "
+            "arrangements set out in writing.",
+        ),
     ),
     "complaint_handling_delay": (
-        "Original complaint reopened and concluded within ten days. Delay "
-        "caused by the case being closed in error at first assessment. "
-        "Compensation paid for the delay and for the distress caused. "
-        "Case-closure controls tightened to require a recorded outcome.",
+        ResolutionAction(
+            Outcome.UPHELD,
+            True,
+            "Original complaint reopened and concluded within ten days. Delay "
+            "caused by the case being closed in error at first assessment. "
+            "Compensation paid for the delay and for the distress caused. "
+            "Case-closure controls tightened to require a recorded outcome.",
+        ),
+        ResolutionAction(
+            Outcome.PARTIALLY_UPHELD,
+            True,
+            "The case did exceed the eight-week deadline, but the substantive "
+            "decision was correct and is unchanged. Payment made for the delay "
+            "alone. Holding-letter automation extended to cover cases awaiting "
+            "third-party evidence.",
+        ),
+        ResolutionAction(
+            Outcome.NOT_UPHELD,
+            False,
+            "The complaint was acknowledged and concluded within the required "
+            "period, with two updates issued in between. Correspondence log "
+            "provided to the customer along with the ombudsman referral rights.",
+        ),
     ),
     "savings_rate_change": (
-        "Notice was issued but to a superseded address. Interest difference "
-        "refunded for the notice period and address records corrected. Address "
-        "propagation defect raised with the servicing team.",
+        ResolutionAction(
+            Outcome.UPHELD,
+            True,
+            "Notice was issued but to a superseded address. Interest difference "
+            "refunded for the notice period and address records corrected. Address "
+            "propagation defect raised with the servicing team.",
+        ),
+        ResolutionAction(
+            Outcome.PARTIALLY_UPHELD,
+            True,
+            "Notice was given within the required period but the wording did not "
+            "make the size of the reduction clear. Interest difference paid for "
+            "one month as a gesture and the notice template rewritten; the rate "
+            "change itself stands.",
+        ),
+        ResolutionAction(
+            Outcome.NOT_UPHELD,
+            False,
+            "The rate change was made under the variation terms and notice was "
+            "given in writing 60 days beforehand to the address held. Copy of the "
+            "notice supplied and the alternative products explained.",
+        ),
     ),
     "direct_debit_errors": (
-        "Mandate reinstated and the lapsed policy restored with the insurer at "
-        "the firm's cost. Cancellation was actioned against the wrong mandate "
-        "reference. Confirmation step added before any cancellation is applied.",
+        ResolutionAction(
+            Outcome.UPHELD,
+            True,
+            "Mandate reinstated and the lapsed policy restored with the insurer at "
+            "the firm's cost. Cancellation was actioned against the wrong mandate "
+            "reference. Confirmation step added before any cancellation is applied.",
+        ),
+        ResolutionAction(
+            Outcome.PARTIALLY_UPHELD,
+            False,
+            "The mandate was cancelled on the customer's own instruction, but the "
+            "instruction was ambiguous and should have been queried before it was "
+            "actioned. Mandate reinstated at no cost and the call-handling script "
+            "amended to require read-back. No loss arose.",
+        ),
+        ResolutionAction(
+            Outcome.NOT_UPHELD,
+            False,
+            "The collection was presented by the originator on the date agreed in "
+            "the mandate, and the firm applied it correctly. Customer referred to "
+            "the originator to vary the schedule, and the indemnity route "
+            "explained.",
+        ),
     ),
     "vulnerable_customer_support": (
-        "Vulnerability marker was recorded but not surfaced to the servicing "
-        "screens, so disclosed needs were repeatedly missed. Marker visibility "
-        "corrected across all channels. Communications switched to large print "
-        "and a named contact assigned. Compensation paid for distress.",
-        "Reasonable adjustment request had been recorded in free text rather "
-        "than as a structured flag and was therefore never applied. Request "
-        "re-recorded correctly and applied retrospectively. Free-text capture "
-        "replaced with a structured field in the servicing journey.",
+        ResolutionAction(
+            Outcome.UPHELD,
+            True,
+            "Vulnerability marker was recorded but not surfaced to the servicing "
+            "screens, so disclosed needs were repeatedly missed. Marker visibility "
+            "corrected across all channels. Communications switched to large print "
+            "and a named contact assigned. Compensation paid for distress.",
+        ),
+        ResolutionAction(
+            Outcome.PARTIALLY_UPHELD,
+            False,
+            "Reasonable adjustment request had been recorded in free text rather "
+            "than as a structured flag and was therefore never applied. Request "
+            "re-recorded correctly and applied retrospectively. Free-text capture "
+            "replaced with a structured field in the servicing journey.",
+        ),
+        ResolutionAction(
+            Outcome.NOT_UPHELD,
+            False,
+            "The adjustments the customer asked for were in place on the account "
+            "throughout and were applied at each contact on the call recordings "
+            "reviewed. Adjustments restated in writing and a named contact "
+            "assigned so the customer need not explain again.",
+        ),
     ),
     "statement_errors": (
-        "Statement suppression had been left in place after a duplicate "
-        "address merge. Suppression removed, missing statements reissued and "
-        "the balance discrepancy traced to a pending transaction display "
-        "defect, now corrected.",
+        ResolutionAction(
+            Outcome.UPHELD,
+            False,
+            "Statement suppression had been left in place after a duplicate "
+            "address merge. Suppression removed, missing statements reissued and "
+            "the balance discrepancy traced to a pending transaction display "
+            "defect, now corrected.",
+        ),
+        ResolutionAction(
+            Outcome.PARTIALLY_UPHELD,
+            True,
+            "Statements were issued on time, but a merchant name displayed against "
+            "the wrong reference for three entries and the customer reasonably "
+            "read them as unrecognised. Descriptions corrected at source and a "
+            "payment made for the trouble of reconciling them.",
+        ),
+        ResolutionAction(
+            Outcome.NOT_UPHELD,
+            False,
+            "The entries queried are pending authorisations that had not yet "
+            "settled, and the closing balance is correct once they clear. Worked "
+            "example provided and the pending-transaction display explained.",
+        ),
     ),
 }

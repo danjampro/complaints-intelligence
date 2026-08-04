@@ -115,18 +115,14 @@ class TestPrecedentRetrieval:
         results = store.search_precedents(query_text=self.QUERY, limit=6)
         assert results
         for precedent in results:
-            assert (
-                precedent.resolution.complaint_id == precedent.complaint.complaint_id
-            )
+            assert precedent.resolution.complaint_id == precedent.complaint.complaint_id
 
     def test_the_category_filter_is_applied_before_ranking(self, store: DuckDBStore):
         results = store.search_precedents(
             query_text=self.QUERY, category="branch_closure", limit=5
         )
         assert results
-        assert all(
-            p.complaint.enrichment.category == "branch_closure" for p in results
-        )
+        assert all(p.complaint.enrichment.category == "branch_closure" for p in results)
 
     def test_the_widened_pass_reaches_beyond_one_category(self, store: DuckDBStore):
         """The second retrieval pass drops the filter, and must actually widen.
