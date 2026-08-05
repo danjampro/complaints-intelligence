@@ -11,19 +11,11 @@ dependencies = [
     "pydantic-settings>=2.7,<3",
     # The bounded agent graph (architecture section 8).
     "langgraph>=0.2.60,<0.7",
-    # BigQuery stand-in: real SQL over Parquet, no infrastructure.
-    "duckdb>=1.1,<2",
-    "pyarrow>=18,<22",
-    # TF-IDF + SVD embeddings and cosine search.
+    # TF-IDF + SVD embeddings and cosine search: the retrieval substrate.
     "numpy>=2.1,<3",
     "scikit-learn>=1.6,<2",
-    # The t distribution for the Welch test. Already present transitively via
-    # scikit-learn; declared because it is imported directly.
-    "scipy>=1.14,<2",
-    # Deterministic render node.
+    # Deterministic rendering.
     "jinja2>=3.1,<4",
-    # Structured logging with run and version identifiers.
-    "structlog>=24.4,<26",
     # CLI.
     "typer>=0.15,<0.20",
 ]
@@ -92,23 +84,16 @@ python_version = "3.12"
 strict = true
 warn_unreachable = true
 files = ["src", "tests"]
-# `disallow_any_unimported` is deliberately NOT set. scikit-learn, duckdb and
-# pyarrow ship no type information, so every object crossing those boundaries
-# is Any regardless. Enabling it would force a cast at each call site and buy
-# nothing: the boundary is narrow (store/ and retrieval/) and the domain
-# objects on the near side are all validated Pydantic models.
+# `disallow_any_unimported` is deliberately NOT set. scikit-learn ships no type
+# information, so every object crossing that boundary is Any regardless.
+# Enabling it would force a cast at each call site and buy nothing: the
+# boundary is one class in store.py and everything on the near side is a
+# validated Pydantic model.
 
 [[tool.mypy.overrides]]
 # These ship no stubs; langgraph ships py.typed but its generics are loose in
 # places. Keep the escape hatch narrow and explicit.
-module = [
-    "langgraph.*",
-    "sklearn.*",
-    "scipy.*",
-    "duckdb.*",
-    "pyarrow.*",
-    "google.genai.*",
-]
+module = ["langgraph.*", "sklearn.*", "google.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

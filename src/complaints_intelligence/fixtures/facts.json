@@ -1,0 +1,427 @@
+{
+  "_note": [
+    "The fact store for reporting week 2026-W31, compared against 2026-W30.",
+    "These are FULL-WEEK figures, computed by the metrics layer before any",
+    "model is invoked. That layer is upstream and out of scope here, so its",
+    "output is committed rather than recomputed. complaints.json holds a small",
+    "readable SAMPLE of the same week, kept for retrieval and citation.",
+    "Every figure the report prints resolves to one of these IDs. The model",
+    "chooses which to cite; it never writes a number."
+  ],
+  "facts": [
+    {
+      "id": "f_0001",
+      "label": "payments_failed · count · 2026-W30",
+      "value": 48,
+      "unit": "complaints",
+      "category": "payments_failed",
+      "week": "2026-W30",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {"category": "payments_failed", "week": "2026-W30"}
+      }
+    },
+    {
+      "id": "f_0002",
+      "label": "payments_failed · count · 2026-W31",
+      "value": 131,
+      "unit": "complaints",
+      "category": "payments_failed",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {"category": "payments_failed", "week": "2026-W31"}
+      }
+    },
+    {
+      "id": "f_0003",
+      "label": "payments_failed · change vs 2026-W30",
+      "value": 1.7292,
+      "unit": "proportion",
+      "category": "payments_failed",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {
+          "category": "payments_failed",
+          "measure": "wow_change",
+          "week": "2026-W31"
+        }
+      }
+    },
+    {
+      "id": "f_0004",
+      "label": "payments_failed · mobile_app · count · 2026-W31",
+      "value": 92,
+      "unit": "complaints",
+      "category": "payments_failed",
+      "channel": "mobile_app",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_weekly_category_channel_counts",
+        "params": {
+          "category": "payments_failed",
+          "channel": "mobile_app",
+          "week": "2026-W31"
+        }
+      }
+    },
+
+    {
+      "id": "f_0005",
+      "label": "overdraft_fees · count · 2026-W30",
+      "value": 31,
+      "unit": "complaints",
+      "category": "overdraft_fees",
+      "week": "2026-W30",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {"category": "overdraft_fees", "week": "2026-W30"}
+      }
+    },
+    {
+      "id": "f_0006",
+      "label": "overdraft_fees · count · 2026-W31",
+      "value": 58,
+      "unit": "complaints",
+      "category": "overdraft_fees",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {"category": "overdraft_fees", "week": "2026-W31"}
+      }
+    },
+    {
+      "id": "f_0007",
+      "label": "overdraft_fees · change vs 2026-W30",
+      "value": 0.871,
+      "unit": "proportion",
+      "category": "overdraft_fees",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {
+          "category": "overdraft_fees",
+          "measure": "wow_change",
+          "week": "2026-W31"
+        }
+      }
+    },
+
+    {
+      "id": "f_0008",
+      "label": "direct_debit_errors · count · 2026-W30",
+      "value": 24,
+      "unit": "complaints",
+      "category": "direct_debit_errors",
+      "week": "2026-W30",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {"category": "direct_debit_errors", "week": "2026-W30"}
+      }
+    },
+    {
+      "id": "f_0009",
+      "label": "direct_debit_errors · count · 2026-W31",
+      "value": 45,
+      "unit": "complaints",
+      "category": "direct_debit_errors",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {"category": "direct_debit_errors", "week": "2026-W31"}
+      }
+    },
+    {
+      "id": "f_0010",
+      "label": "direct_debit_errors · change vs 2026-W30",
+      "value": 0.875,
+      "unit": "proportion",
+      "category": "direct_debit_errors",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {
+          "category": "direct_debit_errors",
+          "measure": "wow_change",
+          "week": "2026-W31"
+        }
+      }
+    },
+
+    {
+      "id": "f_0011",
+      "label": "vulnerable_customer_support · count · 2026-W30",
+      "value": 22,
+      "unit": "complaints",
+      "category": "vulnerable_customer_support",
+      "week": "2026-W30",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {"category": "vulnerable_customer_support", "week": "2026-W30"}
+      }
+    },
+    {
+      "id": "f_0012",
+      "label": "vulnerable_customer_support · count · 2026-W31",
+      "value": 37,
+      "unit": "complaints",
+      "category": "vulnerable_customer_support",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {"category": "vulnerable_customer_support", "week": "2026-W31"}
+      }
+    },
+    {
+      "id": "f_0013",
+      "label": "vulnerable_customer_support · change vs 2026-W30",
+      "value": 0.6818,
+      "unit": "proportion",
+      "category": "vulnerable_customer_support",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {
+          "category": "vulnerable_customer_support",
+          "measure": "wow_change",
+          "week": "2026-W31"
+        }
+      }
+    },
+
+    {
+      "id": "f_0014",
+      "label": "branch_closure · count · 2026-W30",
+      "value": 54,
+      "unit": "complaints",
+      "category": "branch_closure",
+      "week": "2026-W30",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {"category": "branch_closure", "week": "2026-W30"}
+      }
+    },
+    {
+      "id": "f_0015",
+      "label": "branch_closure · count · 2026-W31",
+      "value": 29,
+      "unit": "complaints",
+      "category": "branch_closure",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {"category": "branch_closure", "week": "2026-W31"}
+      }
+    },
+    {
+      "id": "f_0016",
+      "label": "branch_closure · change vs 2026-W30",
+      "value": -0.463,
+      "unit": "proportion",
+      "category": "branch_closure",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {
+          "category": "branch_closure",
+          "measure": "wow_change",
+          "week": "2026-W31"
+        }
+      }
+    },
+
+    {
+      "id": "f_0017",
+      "label": "statement_errors · count · 2026-W30",
+      "value": 19,
+      "unit": "complaints",
+      "category": "statement_errors",
+      "week": "2026-W30",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {"category": "statement_errors", "week": "2026-W30"}
+      }
+    },
+    {
+      "id": "f_0018",
+      "label": "statement_errors · count · 2026-W31",
+      "value": 24,
+      "unit": "complaints",
+      "category": "statement_errors",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {"category": "statement_errors", "week": "2026-W31"}
+      }
+    },
+    {
+      "id": "f_0019",
+      "label": "statement_errors · change vs 2026-W30",
+      "value": 0.2632,
+      "unit": "proportion",
+      "category": "statement_errors",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_weekly_category_counts",
+        "params": {
+          "category": "statement_errors",
+          "measure": "wow_change",
+          "week": "2026-W31"
+        }
+      }
+    },
+
+    {
+      "id": "f_0020",
+      "label": "payments_failed · mobile_app · mean sentiment · 2026-W30",
+      "value": -0.54,
+      "unit": "sentiment_index",
+      "category": "payments_failed",
+      "channel": "mobile_app",
+      "week": "2026-W30",
+      "provenance": {
+        "view": "v_sentiment_by_channel_week",
+        "params": {
+          "category": "payments_failed",
+          "channel": "mobile_app",
+          "week": "2026-W30"
+        }
+      }
+    },
+    {
+      "id": "f_0021",
+      "label": "payments_failed · mobile_app · mean sentiment · 2026-W31",
+      "value": -0.76,
+      "unit": "sentiment_index",
+      "category": "payments_failed",
+      "channel": "mobile_app",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_sentiment_by_channel_week",
+        "params": {
+          "category": "payments_failed",
+          "channel": "mobile_app",
+          "week": "2026-W31"
+        }
+      }
+    },
+    {
+      "id": "f_0022",
+      "label": "payments_failed · mobile_app · sentiment shift vs 2026-W30",
+      "value": -0.22,
+      "unit": "sentiment_index",
+      "category": "payments_failed",
+      "channel": "mobile_app",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_sentiment_by_channel_week",
+        "params": {
+          "category": "payments_failed",
+          "channel": "mobile_app",
+          "measure": "sentiment_shift",
+          "week": "2026-W31"
+        }
+      }
+    },
+
+    {
+      "id": "f_0023",
+      "label": "direct_debit_errors · call_centre · mean sentiment · 2026-W30",
+      "value": -0.46,
+      "unit": "sentiment_index",
+      "category": "direct_debit_errors",
+      "channel": "call_centre",
+      "week": "2026-W30",
+      "provenance": {
+        "view": "v_sentiment_by_channel_week",
+        "params": {
+          "category": "direct_debit_errors",
+          "channel": "call_centre",
+          "week": "2026-W30"
+        }
+      }
+    },
+    {
+      "id": "f_0024",
+      "label": "direct_debit_errors · call_centre · mean sentiment · 2026-W31",
+      "value": -0.7,
+      "unit": "sentiment_index",
+      "category": "direct_debit_errors",
+      "channel": "call_centre",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_sentiment_by_channel_week",
+        "params": {
+          "category": "direct_debit_errors",
+          "channel": "call_centre",
+          "week": "2026-W31"
+        }
+      }
+    },
+    {
+      "id": "f_0025",
+      "label": "direct_debit_errors · call_centre · sentiment shift vs 2026-W30",
+      "value": -0.24,
+      "unit": "sentiment_index",
+      "category": "direct_debit_errors",
+      "channel": "call_centre",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_sentiment_by_channel_week",
+        "params": {
+          "category": "direct_debit_errors",
+          "channel": "call_centre",
+          "measure": "sentiment_shift",
+          "week": "2026-W31"
+        }
+      }
+    },
+
+    {
+      "id": "f_0026",
+      "label": "CT-007 · members · 2026-W31",
+      "value": 34,
+      "unit": "complaints",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_candidate_themes",
+        "params": {"theme_id": "CT-007", "week": "2026-W31"}
+      }
+    },
+    {
+      "id": "f_0027",
+      "label": "CT-012 · members · 2026-W31",
+      "value": 28,
+      "unit": "complaints",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_candidate_themes",
+        "params": {"theme_id": "CT-012", "week": "2026-W31"}
+      }
+    },
+
+    {
+      "id": "f_0028",
+      "label": "total complaints · 2026-W31",
+      "value": 1284,
+      "unit": "complaints",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_health_indicators",
+        "params": {"measure": "total_complaints", "week": "2026-W31"}
+      }
+    },
+    {
+      "id": "f_0029",
+      "label": "classifier abstention rate · 2026-W31",
+      "value": 0.081,
+      "unit": "proportion",
+      "week": "2026-W31",
+      "provenance": {
+        "view": "v_health_indicators",
+        "params": {"measure": "abstention_rate", "week": "2026-W31"}
+      }
+    }
+  ]
+}

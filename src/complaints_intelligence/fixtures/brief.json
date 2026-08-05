@@ -1,0 +1,116 @@
+{
+  "_note": [
+    "What the metrics layer flagged for reporting week 2026-W31. That layer is",
+    "upstream and out of scope, so its verdicts are committed here rather than",
+    "recomputed: which categories moved enough to report, whether each",
+    "movement survived multiple-testing correction, which channel dominates,",
+    "and how many consecutive weeks the cluster-linking service has seen each",
+    "candidate theme.",
+    "",
+    "statement_errors is carried deliberately. It cleared the reporting",
+    "threshold and then failed the significance test, and 'tested and not",
+    "significant' must read differently from 'never looked at'.",
+    "",
+    "Everything measurable from the complaints themselves — cluster coherence,",
+    "channel spread, duplicate ratio — is measured at run time by brief.py",
+    "rather than declared here. A declared coherence would carry no",
+    "information, and the measured values are the point: the duplicated CRM",
+    "notes score far tighter than the genuine emerging theme."
+  ],
+
+  "run_id": "2026-W31",
+  "week": "2026-W31",
+  "baseline_week": "2026-W30",
+  "headline_fact_ids": ["f_0028", "f_0029"],
+
+  "categories": [
+    {
+      "category": "payments_failed",
+      "direction": "up",
+      "significant": true,
+      "concentrated_in_channel": "mobile_app",
+      "baseline_count_fact_id": "f_0001",
+      "count_fact_id": "f_0002",
+      "change_fact_id": "f_0003"
+    },
+    {
+      "category": "overdraft_fees",
+      "direction": "up",
+      "significant": true,
+      "concentrated_in_channel": "fos_referral",
+      "baseline_count_fact_id": "f_0005",
+      "count_fact_id": "f_0006",
+      "change_fact_id": "f_0007"
+    },
+    {
+      "category": "direct_debit_errors",
+      "direction": "up",
+      "significant": true,
+      "concentrated_in_channel": null,
+      "baseline_count_fact_id": "f_0008",
+      "count_fact_id": "f_0009",
+      "change_fact_id": "f_0010"
+    },
+    {
+      "category": "vulnerable_customer_support",
+      "direction": "up",
+      "significant": true,
+      "concentrated_in_channel": "call_centre",
+      "baseline_count_fact_id": "f_0011",
+      "count_fact_id": "f_0012",
+      "change_fact_id": "f_0013"
+    },
+    {
+      "category": "branch_closure",
+      "direction": "down",
+      "significant": true,
+      "concentrated_in_channel": null,
+      "baseline_count_fact_id": "f_0014",
+      "count_fact_id": "f_0015",
+      "change_fact_id": "f_0016"
+    },
+    {
+      "category": "statement_errors",
+      "direction": "up",
+      "significant": false,
+      "concentrated_in_channel": null,
+      "baseline_count_fact_id": "f_0017",
+      "count_fact_id": "f_0018",
+      "change_fact_id": "f_0019"
+    }
+  ],
+
+  "sentiment": [
+    {
+      "scope": "payments_failed",
+      "channel": "mobile_app",
+      "direction": "down",
+      "baseline_fact_id": "f_0020",
+      "current_fact_id": "f_0021",
+      "shift_fact_id": "f_0022"
+    },
+    {
+      "scope": "direct_debit_errors",
+      "channel": "call_centre",
+      "direction": "down",
+      "baseline_fact_id": "f_0023",
+      "current_fact_id": "f_0024",
+      "shift_fact_id": "f_0025"
+    }
+  ],
+
+  "themes": [
+    {
+      "theme_id": "CT-007",
+      "provisional_label": "unlabelled cluster in the residual pool",
+      "persistence_weeks": 3,
+      "size_fact_id": "f_0026"
+    },
+    {
+      "theme_id": "CT-012",
+      "provisional_label": "unlabelled cluster in the residual pool",
+      "persistence_weeks": 1,
+      "size_fact_id": "f_0027"
+    }
+  ]
+}

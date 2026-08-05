@@ -1,7 +1,7 @@
 # 02 — Solution Architecture
 
-Figure 1 is the Part 2 deliverable. Zoom-ins: Fig 2 agent graph, Fig 3 taxonomy
-governance, Fig 4 guardrails and trust boundaries.
+The diagram below is the Part 2 deliverable. Section 8 expands the agentic
+workflow, which is the stage implemented in code for Part 3.
 
 ```mermaid
 %%{init: {"flowchart": {"useMaxWidth": false}}}%%
@@ -60,8 +60,8 @@ flowchart LR
   D1 -->|candidate counts| M1
   TAX -.->|re-project history| M1
 
-  subgraph AG["Agentic workflow — expanded in Fig 2"]
-    G1["plan → investigate → adjudicate<br/>→ remediate → critic → render<br/><i>read-only tools · bounded budgets</i>"]
+  subgraph AG["Agentic workflow — see §8"]
+    G1["investigate → adjudicate → remediate<br/>→ critic ⇄ revise → render<br/><i>read-only tools · bounded budgets</i>"]
   end
   M1 -->|metrics brief + facts| G1
   CS -->|exemplar RAG| G1
@@ -194,11 +194,50 @@ comparable history.
 Deterministic aggregation and statistics. dbt models over BigQuery for counting;
 a Python module for what SQL cannot express.
 
-**Computes:** volumes and rates by category, channel, product and week;
-within-channel sentiment aggregation; negative-binomial velocity tests with
-Benjamini-Hochberg FDR control; CUSUM drift detection; precomputed segment
-breakdowns; health indicators (abstention rate, residual share, quarantine
-counts).
+**Volumes** — counts and rates by category, channel, product and week, offset by
+exposure.
+
+**Sentiment** — aggregated strictly *within* channel, then combined with channel
+weighting. Raw pooling would track the channel mix rather than sentiment, since
+callers are more expressive than form-fillers: a category whose complaints
+shifted from the app to the call centre would appear to change tone when only
+its mix moved.
+
+**Velocity** — a negative binomial model per category over a trailing 52-week
+window. Negative binomial rather than Poisson because complaint counts are
+over-dispersed: volume clusters around incidents, campaigns and outages, so
+variance exceeds the mean and a Poisson assumption would flag ordinary weeks as
+significant.
+
+The multiplicity problem is the real one. With ~40 categories tested every week,
+comparing each against last week at the 5% level produces roughly two false
+alarms a week, indefinitely, and a report that cries wolf twice a week is worse
+than no report. So every category is tested — not just the interesting-looking
+ones, because the correction is only valid over the whole family — and
+**Benjamini-Hochberg FDR control at q = 0.10** is applied across the family.
+FDR rather than family-wise error: the cost of one spurious line in a report a
+human reviews is far lower than the cost of missing a genuine emerging problem,
+and Bonferroni at 40 tests would miss most real movements.
+
+Two gates, not one. A flag requires `q ≤ 0.10` **and** a movement large enough to
+be worth a reader's attention. Significance alone surfaces trivially small moves
+in large categories; a threshold alone surfaces noise in small ones.
+
+**Minimum detectable effect** is reported alongside the results, because a null
+result is only meaningful with a stated sensitivity: "no significant change in a
+category with a baseline of 19" means something quite different from the same
+statement about a baseline of 500. Past a few hundred complaints a week it is
+week-to-week variability, not sample size, that limits sensitivity — a real
+property of over-dispersed count data, and the reason the MDE is published rather
+than assumed away.
+
+**Drift** — CUSUM on the rate, catching sustained movement no single week
+reveals, reported separately from spikes.
+
+**Health** — abstention rate and reason mix, residual share, quarantine counts,
+channel volume bounds. A week outside bounds is marked degraded and alerting is
+suppressed: a backdated regulator batch or a channel outage otherwise looks
+exactly like signal.
 
 **Emits facts** — typed values with provenance:
 
@@ -237,44 +276,124 @@ agent's tools cheap, parameterised and bounded rather than free-form queries; an
 it is independently testable without invoking a model, which is exactly what a
 model validator will ask for.
 
+## 7a · Embedding strategy
+
+**One embedding column, `SEMANTIC_SIMILARITY`, serving every consumer:**
+classification, novelty scoring, theme linking, discovery clustering and
+precedent retrieval.
+
+A single shared space is a hard requirement for the first four. Taxonomy
+centroids and candidate-theme centroids are compared *to each other* when
+deduplicating a discovered theme against an existing category, and distances have
+to mean the same thing on both sides.
+
+**Precedent retrieval is complaint-to-complaint, not complaint-to-resolution.**
+The agent matches a complaint description against the complaint text of closed
+cases, then joins to their resolution notes:
+
+```sql
+VECTOR_SEARCH(v_precedent_embeddings, query_vector, top_k => 20)
+  → JOIN complaints → return complaint text + resolution_note
+```
+
+That is a symmetric like-for-like comparison, so one embedding space is correct
+and no separate resolution index is needed. Searching the notes directly would be
+*asymmetric* retrieval — the query is a description of a problem, the documents
+are terse, jargon-heavy accounts of what a handler did about one — so the
+embedding would have to bridge "customer could not make a payment" to "reversed
+the fee and reset the payee limit". Complaints are richer, more consistent, and
+already in the space the query is written for.
+
+Two consequences worth stating:
+
+- Retrieval *by resolution content* ("cases where the fix was a fee reversal") is
+  not supported. It is not required by the four outputs and would need a second
+  index.
+- The search must be restricted to closed complaints that have a note **before**
+  ranking, not filtered afterwards, or recall degrades silently whenever the
+  nearest complaints happen to be open.
+
 ## 8 · Agentic workflow
 
 Bounded LangGraph pipeline. Read-only tools, no write access, no external egress,
 budgeted steps.
 
 ```
-plan → investigate → adjudicate → remediate → critic ⇄ revise → render
+investigate → adjudicate → remediate → critic ⇄ revise
 ```
 
 | Node | Does |
 |---|---|
-| `plan` | Reads the metrics brief; allocates a bounded set of investigations by excess volume and severity. Skipped items are recorded. |
-| `investigate` | Per finding: retrieves exemplar complaints, characterises what customers are actually describing, drafts a finding with citations. |
-| `adjudicate` | Per candidate theme: real signal, noise, or ingest artefact? Checks coherence, persistence, and data-quality facts; deduplicates against existing categories. |
-| `remediate` | Vector search over similar closed complaints, joined to their resolution notes; assesses whether that precedent genuinely transfers, and summarises what was done and what worked. Retries with widened retrieval if relevance is poor. |
+| `investigate` | Per flagged category, in the order the metrics layer ranked them: retrieves exemplar complaints, characterises what customers are actually describing, drafts a finding with citations. |
+| `adjudicate` | Per candidate theme: real signal, noise, or ingest artefact? Weighs coherence, persistence, channel spread and duplicate ratio against the evidence; deduplicates against existing categories. |
+| `remediate` | Vector search over similar closed complaints, joined to their resolution notes; assesses whether that precedent genuinely transfers, and summarises what was done and what worked. Widens retrieval beyond the category and retries if too little transfers. |
 | `critic` | Programmatic verification. Failures return to a bounded revise loop (max 2). |
-| `render` | Deterministic templating. No model involvement. |
+| `revise` | Re-prompts with the specific checks that failed, on the same retrieved evidence. |
 
-**Tools:** `query_metrics` (parameterised views only), `get_exemplars`,
-`get_precedent`. No free-form SQL.
+**Tools:** `get_exemplars` and `get_precedent`, both parameterised, both
+read-only, both budgeted. There is no method anywhere in the reachable graph
+that takes SQL.
 
-**The critic enforces:**
+**Rendering is deliberately not a node.** It is deterministic templating with no
+model involvement, so it runs after the graph against verified state. Putting it
+in the graph would place the one stage that must never vary — the stage that
+substitutes real figures into prose — inside a revision loop.
 
-- every numeric claim resolves to a fact ID — 100%, an assertion not a metric
-- no literal figure anywhere in a claim, digits or spelled out
-- every fact reference sits where a figure reads correctly — substitution
-  happens *after* verification, so nothing else looks at the sentence the
-  reader gets
-- every qualitative claim carries ≥2 complaint citations with valid offsets
-- no causal language: "coincident with" is permitted, "caused by" is not; causal
-  hypotheses are emitted as requiring confirmation by a named owner
-- zero PII in output text, scanned over resolved quotations as well as model
-  prose, using the renderer's own span arithmetic so the check cannot inspect
-  less than the report prints
-- no unexplained internal acronyms
+**Ordering is not the agent's to choose.** Which movements matter is a
+statistical question the metrics layer has already answered, so the brief arrives
+ranked and the investigation budget drops the weakest movements rather than an
+arbitrary tail. An earlier design had the model plan its own investigations; its
+output was then validated against the brief and truncated to budget anyway, so
+the node was removed.
 
-**What the agent cannot do:** compute any statistic; rank the top 5; modify the
-taxonomy; publish; write anywhere; reach the internet.
+**The critic enforces five checks, all programmatic:**
+
+| Check | Enforces |
+|---|---|
+| `facts_resolve` | Every referenced fact ID exists. An ID that does not resolve means a figure was invented. |
+| `no_literal_numbers` | No figure typed in prose, as digits or spelled out. The complement of the above: an ID that resolves proves nothing if the model also typed "142" beside it. |
+| `citations_present` | Every qualitative claim carries ≥ 2 complaint citations. Two rather than one, because a single complaint is an anecdote. |
+| `citations_resolve` | Offsets return the text they claim. This is what makes misquotation structurally impossible rather than detected afterwards. |
+| `no_pii` | No personal data in output, scanned over resolved quotations as well as model prose — a quote pulled from the store can carry an identifier redaction missed. |
+
+The first two run over **everything the model wrote that reaches the reader**,
+not only over findings. A theme the agent *rejects* never becomes a finding, but
+its rationale is still published in §3 — so verifying findings alone would leave
+that prose unchecked.
+
+No model is involved in verification. These are assertions about structure and
+provenance, not judgements about quality, which is precisely why they can be
+trusted to gate the render stage: a model grading another model's output would
+inherit its failure modes, whereas a regular expression and a lookup in the fact
+store do not.
+
+`facts_resolve` and `citations_resolve` are assertions, not metrics — they are
+expected to pass at 100%, and a failure fails the run.
+
+**What the agent cannot do:** compute any statistic; rank the drivers; modify the
+taxonomy; publish; write anywhere; reach the internet. These are absent from the
+tool interface rather than forbidden by instruction, which is the only form of
+prohibition that survives an adversarial input.
+
+**Untrusted text has exactly one entry point.** Complaint text is
+customer-supplied and adversarial-capable, and it is data — never instruction —
+at every point it enters a prompt, including text returned by retrieval, which is
+the case people forget. All of it passes through a single fencing function that
+makes the boundary explicit, neutralises delimiter escapes, and keeps identifiers
+*outside* the quoted block so a payload cannot forge a citation.
+
+Every neutralisation rule must preserve length. The model produces citation
+offsets against the text it was shown and the renderer slices those offsets out
+of the *stored* text, so a sanitiser that shortened the text by one character
+would silently shift every quotation in the report — a failure invisible at the
+point it occurs, because the report still renders.
+
+This does not make injection impossible; nothing at the prompt layer can. That is
+why the real defences are structural and downstream: the model cannot emit a
+figure, cannot cite a complaint it was not given, and every claim is verified
+against the store before rendering. A successful injection can make the model
+write something odd. It cannot make the report contain a false number or a
+fabricated quote.
 
 **Why an agent rather than a prompt chain.** The remediation step is
 retrieve → assess relevance → refine, and the number of iterations depends on
@@ -333,19 +452,28 @@ decision belongs to.
 | BigQuery vector search | Dedicated vector database |
 | Cloud Run + Composer | GKE |
 | Constrained agent graph | Single-shot prompt; autonomous ReAct agent |
+| **Facts computed before generation, referenced by ID, substituted at render time** | Post-hoc numeric verification, which can only ever *detect* a fabricated figure. Here the model has no field to put a number in, so numeric hallucination is structurally impossible instead |
+| **Quotations sliced from the store at render time using complaint ID plus character offsets** | Letting the model reproduce the text it quotes, which makes misquotation possible and then requires a diff to catch |
+| **Programmatic critic** | An LLM-as-judge, which would inherit the failure modes of the model it is grading. A regular expression and a store lookup do not |
+| **Rendering outside the graph** | A `render` node, which would put the one stage that must never vary inside reach of a revision loop |
+| **Ranking decided by the metrics layer; the agent investigates in that order** | A `plan` node choosing its own investigations — its output had to be validated against the brief and truncated to budget anyway, so it added a model call and changed nothing |
 | Remediation by precedent retrieval | Causal root-cause inference; change-calendar correlation |
 | One embedding space over complaint text; precedent matched complaint-to-complaint and joined to its note | A second index over resolution notes; asymmetric complaint→resolution retrieval |
-| Facts computed before generation | Post-hoc numeric verification |
+| **Adjudication on four cluster signals — coherence, persistence, channel spread, duplicate ratio** | Coherence alone, which points the *wrong way*: in the demonstration fixture the duplicated CRM notes measure 0.95 and the genuine emerging theme 0.12, because near-identical text is trivially coherent. Anything adjudicating on coherence alone would accept the decoy and reject the real signal |
+| **Untrusted text fenced at a single choke point, with length-preserving neutralisation** | Sanitising at each call site, which erodes silently; stripping markers, which shifts every citation offset in the report while still rendering successfully |
+| **Sentiment trends rendered deterministically from the brief and carried on the report object** | A model-authored sentiment section, which would put a model in the path of a figure; passing the brief to the renderer instead, which would leave the report object unable to reproduce its own Markdown |
+| **Benjamini-Hochberg FDR control across the whole family of category tests** | Uncorrected weekly comparison, which produces ~2 false alarms a week at 40 categories; Bonferroni, which would miss most real movements |
 | LangGraph as the graph runtime | A bespoke loop; a general agent framework |
-| Sentiment trends rendered deterministically from the metrics brief, carried on the report object | A model-authored sentiment section, which would put a model in the path of a figure; passing the brief to the renderer instead, which would leave the report object unable to reproduce its own Markdown |
-| Fact-reference placement given as a worked phrase per fact in the prompt's fact block, and enforced by a critic check | Prose guidance alone — it was already present, with a worked example, and the model broke it anyway; the check alone, which repairs nothing without the prompt change |
-| Five genuine planted volume movements against an investigation budget of five | Loosening the flagging thresholds until a fifth category appears, which surfaces generator noise as a driver and contradicts the decoy signal; a single new signal, which leaves a spare slot the noise category fills |
 
-The demonstration package substitutes for three of these so that it runs
-offline with no credentials. The production choice is on the left.
+### What the demonstration package substitutes
+
+So that it runs offline in seconds with no credentials. The production choice is
+on the left.
 
 | Production | Substituted with, in this package |
 |---|---|
-| BigQuery | DuckDB over Parquet, behind the same repository protocols |
-| A hosted embedding model | TF-IDF + truncated SVD |
-| Live model calls | Replay of committed cassettes, recorded from the live model |
+| BigQuery, behind repository methods | The same methods over an in-memory fixture |
+| A hosted embedding model | TF-IDF + truncated SVD, which captures term co-occurrence rather than meaning |
+| The metrics layer (§7) | Its output, committed as `fixtures/facts.json` and `fixtures/brief.json` |
+| ~5,000 complaints/week | ~50 hand-written complaints, small enough that a reviewer can read them |
+| Live model calls | Replay of committed recordings, made against the live model |

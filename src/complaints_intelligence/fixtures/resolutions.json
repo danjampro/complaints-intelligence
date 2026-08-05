@@ -1,0 +1,110 @@
+{
+  "_note": [
+    "Resolution notes on closed complaints. These are the sole knowledge",
+    "source for remediation: the agent retrieves how comparable complaints",
+    "were actually resolved rather than reasoning about causes from first",
+    "principles.",
+    "",
+    "Each note is coherent with its structured fields — a note recorded as",
+    "not_upheld does not describe refunding the customer — because the",
+    "remediation prompt asks the model to weigh exactly that."
+  ],
+  "resolutions": [
+    {
+      "complaint_id": "CMP-2026W30-0001",
+      "category": "payments_failed",
+      "outcome": "upheld",
+      "redress_gbp": 180,
+      "days_to_close": 21,
+      "text": "Payment traced and re-presented manually. Failure attributed to a timeout in the payments gateway during the release window. Customer refunded the late fee on production of evidence and a goodwill payment made. Gateway timeout raised with the payments engineering team."
+    },
+    {
+      "complaint_id": "CMP-2026W30-0002",
+      "category": "payments_failed",
+      "outcome": "upheld",
+      "redress_gbp": 95,
+      "days_to_close": 9,
+      "text": "Confirmed the duplicate debit and reversed the second collection the same day. Root cause was a retry that did not check for an existing reference. Fix deployed; affected customers identified by query and proactively refunded."
+    },
+    {
+      "complaint_id": "CMP-2026W30-0003",
+      "category": "payments_failed",
+      "outcome": "partially_upheld",
+      "redress_gbp": 45,
+      "days_to_close": 26,
+      "text": "The payment itself was correctly rejected, but the customer was not told for two working days and the failure notice went to a dormant inbox. Notification routing corrected and the charge arising from the delay refunded. The underlying rejection stands."
+    },
+    {
+      "complaint_id": "CMP-2026W30-0004",
+      "category": "overdraft_fees",
+      "outcome": "upheld",
+      "redress_gbp": 220,
+      "days_to_close": 18,
+      "text": "Charges refunded in full for the period where no pre-notification was sent. Notification failure traced to a suppressed alerting flag on the account. Flag cleared and a query run to identify other affected accounts."
+    },
+    {
+      "complaint_id": "CMP-2026W30-0005",
+      "category": "overdraft_fees",
+      "outcome": "partially_upheld",
+      "redress_gbp": 60,
+      "days_to_close": 31,
+      "text": "Pre-notification was sent for some of the charges but not all. The unnotified charges were refunded and the remainder stand. Alerting coverage gap raised with the servicing team."
+    },
+    {
+      "complaint_id": "CMP-2026W30-0006",
+      "category": "direct_debit_errors",
+      "outcome": "upheld",
+      "redress_gbp": 310,
+      "days_to_close": 14,
+      "text": "Mandate reinstated and the lapsed policy restored with the insurer at the firm's cost. The cancellation had been actioned against the wrong mandate reference. Confirmation step added before any cancellation is applied."
+    },
+    {
+      "complaint_id": "CMP-2026W30-0007",
+      "category": "direct_debit_errors",
+      "outcome": "partially_upheld",
+      "redress_gbp": 0,
+      "days_to_close": 22,
+      "text": "The mandate was cancelled on the customer's own instruction, but the instruction was ambiguous and should have been queried before it was actioned. Mandate reinstated at no cost and the call-handling script amended to require read-back. No loss arose."
+    },
+    {
+      "complaint_id": "CMP-2026W30-0008",
+      "category": "vulnerable_customer_support",
+      "outcome": "upheld",
+      "redress_gbp": 250,
+      "days_to_close": 35,
+      "text": "Vulnerability marker was recorded but not surfaced to the servicing screens, so disclosed needs were repeatedly missed. Marker visibility corrected across all channels, communications switched to large print, and a named contact assigned. Compensation paid for distress."
+    },
+    {
+      "complaint_id": "CMP-2026W30-0009",
+      "category": "vulnerable_customer_support",
+      "outcome": "partially_upheld",
+      "redress_gbp": 0,
+      "days_to_close": 28,
+      "text": "The reasonable adjustment request had been recorded in free text rather than as a structured flag and was therefore never applied. Request re-recorded correctly and applied retrospectively. Free-text capture replaced with a structured field in the servicing journey."
+    },
+    {
+      "complaint_id": "CMP-2026W30-0010",
+      "category": "branch_closure",
+      "outcome": "upheld",
+      "redress_gbp": 0,
+      "days_to_close": 40,
+      "text": "Closure notice was not issued to this customer at all, owing to a gap in the mailing extract. Personal apology issued, a home visit arranged to set up telephone banking, and the extract logic corrected before the next closure programme."
+    },
+    {
+      "complaint_id": "CMP-2026W30-0011",
+      "category": "branch_closure",
+      "outcome": "not_upheld",
+      "redress_gbp": 0,
+      "days_to_close": 33,
+      "text": "The closure decision follows a documented review of branch usage and is not reversible on individual request. Statutory notice was given in branch and by post within the required period. Alternative access arrangements set out in writing and a home visit offered."
+    },
+    {
+      "complaint_id": "CMP-2026W30-0012",
+      "category": "statement_errors",
+      "outcome": "upheld",
+      "redress_gbp": 0,
+      "days_to_close": 19,
+      "text": "Statement suppression had been left in place after a duplicate address merge. Suppression removed, missing statements reissued, and the balance discrepancy traced to a pending transaction display defect, now corrected."
+    }
+  ]
+}

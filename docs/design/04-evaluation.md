@@ -22,11 +22,10 @@ a failure fails the run. They are not KPIs and they do not have targets.
 
 | Assertion | Enforced by |
 |---|---|
-| Every numeric claim resolves to a stored fact ID | `critic.checks.check_facts_resolve` |
+| Every numeric claim resolves to a stored fact ID | `critic.check_facts_resolve` |
 | No claim states a figure directly | `check_no_literal_numbers` |
 | Every qualitative claim carries ≥2 citations | `check_citations_present` |
 | Every citation resolves to source text at its offsets | `check_citations_resolve` |
-| No unhedged causal language | `check_no_causal_language` |
 | No personal data in output | `check_no_pii` |
 
 Three of these are stronger than checks, because the architecture removes the

@@ -11,7 +11,7 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Generated demo artefacts. Fixtures under data/ ARE committed (see README);
-# report output is not.
+# Generated report output. The fixture it is generated from lives under
+# src/complaints_intelligence/fixtures/ and IS committed.
 out/
 .env

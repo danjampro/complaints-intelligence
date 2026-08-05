@@ -1,10 +1,8 @@
 # complaints-intelligence
 
-Part 3 of a technical interview exercise: the **agentic report generation
-loop** that turns a week of complaint metrics into a written, fact-grounded and
-fully cited compliance report.
-
-The full solution design is in [`docs/design/`](docs/design/):
+Part 3 of a technical interview exercise: the **agentic report generation loop**
+that turns a week of complaint metrics into a written, fact-grounded and fully
+cited compliance report.
 
 | Part | Document |
 |---|---|
@@ -13,9 +11,8 @@ The full solution design is in [`docs/design/`](docs/design/):
 | 3 — Code | this package, implementing **section 8** of the architecture |
 | 4 — Evaluation | [`04-evaluation.md`](docs/design/04-evaluation.md) |
 
-Decisions, including the alternatives rejected, are recorded in the *Key
-decisions* section of
-[`02-architecture.md`](docs/design/02-architecture.md#key-decisions).
+Design decisions, including the alternatives rejected, are in the
+[*Key decisions*](docs/design/02-architecture.md#key-decisions) table.
 
 **All data here is synthetic.** Nothing resembles any real firm's systems,
 taxonomies or complaints.
@@ -29,78 +26,62 @@ account.
 
 ```bash
 uv sync
-uv run ci demo
+uv run ci run       # writes out/report.md
 ```
 
-This generates the corpus, derives the fact store, runs the agent against
-committed recordings of a real model, verifies the draft, and writes
-`out/report.md`.
-
-To run against the live model instead (needs `GEMINI_API_KEY`):
-
-```bash
-uv sync --all-extras
-uv run ci run --live
-```
-
-### Commands
-
-| Command | Does |
-|---|---|
-| `ci generate-data --seed 42` | Write the synthetic corpus to `data/*.parquet` |
-| `ci build-facts` | Derive the fact store and the metrics brief |
-| `ci run [--live\|--record]` | Run the agent and render the report |
-| `ci demo` | All of the above, offline |
+This runs the agent against committed recordings of a real model, verifies the
+draft, and renders the report. To call the live model instead (needs
+`GEMINI_API_KEY`): `uv sync --all-extras && uv run ci run --live`.
 
 ---
 
 ## The central claim
 
-The report contains two kinds of content with very different reliability
-needs, so they are produced by different machinery.
+The report contains two kinds of content with very different reliability needs,
+so they are produced by different machinery.
 
-**Numbers** are computed by ordinary code before any model is invoked, stored
-as facts with provenance, and referenced by ID. The model chooses *which*
-stored figure to cite and writes prose around it; values are substituted at
-render time.
+**Numbers** are computed by ordinary code before any model is invoked, stored as
+facts with provenance, and referenced by ID. The model chooses *which* stored
+figure to cite and writes the prose around it; values are substituted at render
+time.
 
 **Judgement** — what is emerging, what to do about it — is where the model
-works, always against retrieved evidence, always cited to specific complaints
-by ID and character offset. Quotations are sliced out of the store at render
-time, so the model never handles the words it quotes.
+works, always against retrieved evidence, always cited to specific complaints by
+ID and character offset. Quotations are sliced out of the store at render time,
+so the model never handles the words it quotes.
 
-Numeric hallucination and misquotation are therefore **structurally
-impossible** rather than detected afterwards.
+Numeric hallucination and misquotation are therefore **structurally impossible**
+rather than detected afterwards.
 
 ---
 
-## What the demo actually demonstrates
+## What the demo demonstrates
 
-The synthetic week is built around planted signals, declared in
-[`synth/signals.py`](src/complaints_intelligence/synth/signals.py), so the
-report has something true to say and the tests have a ground truth:
+The fixture in [`fixtures/`](src/complaints_intelligence/fixtures/) is
+hand-written and small enough to read. It is built around planted signals, so
+the report has something true to say and the tests have a ground truth.
 
-| Signal | Exercises |
+| Planted | Exercises |
 |---|---|
-| `payments_failed` 48 → 131, concentrated in the app | A genuine driver, with a real sentiment shift alongside it |
-| `direct_debit_errors` 24 → 45, unconcentrated | A rise whose tone also moves far enough to report, so §2 has a story that is not an echo of the payments spike |
-| `overdraft_fees` 31 → 58, concentrated in regulator referrals | A rise reaching the firm through the ombudsman. Its tone moved too, but not far enough to clear the threshold — *tested and not carried*, which must read differently from *not measured* |
-| `statement_errors` 19 → 24 | Clears a naive threshold, **fails** the corrected velocity test — reported as tested and not significant |
-| `CT-007` round-up double-debits | A real emerging theme: coherent, persistent, spread across channels |
-| `CT-012` duplicated branch notes | **The decoy.** Large and superficially compelling, but one CRM template repeated. The agent must reject it. |
-| 5 injection payloads | Reach retrieval, are fenced, and cannot alter a figure or a quotation |
-| 2 residual PII leaks | Exercise the critic's backstop |
+| `payments_failed` 48 → 131, concentrated in the app, tone worsens | The lead driver, with a real sentiment shift alongside it |
+| `direct_debit_errors` 24 → 45, tone also moves | A second sentiment story that is not an echo of the payments spike |
+| `overdraft_fees` 31 → 58, arriving via the ombudsman | A rise reaching the firm through the regulator rather than its own channels |
+| `branch_closure` 54 → 29 | A genuine fall — "up" is not the only direction expressible |
+| `statement_errors` 19 → 24 | Clears a naive threshold, **fails** the significance test. Reported as tested and not significant, and the first thing the budget drops |
+| `CT-007` round-up double-debits | A real emerging theme: coherent in meaning, persistent, spread across channels |
+| `CT-012` duplicated branch notes | **The decoy.** Large and superficially compelling, but one CRM template repeated. The agent must reject it |
+| 3 injection payloads, 1 residual PII leak | Reach retrieval, are fenced, and cannot alter a figure or a quotation |
 
-The five genuine movements are sized against an investigation budget of five,
-so the budget binds exactly and the category the agent declines to investigate
-is the one that failed its significance test — not whichever happened to rank
-last.
+Five genuine movements against an investigation budget of five, so the budget
+binds exactly: the category the agent declines to investigate is the one that
+failed its significance test, not whichever happened to rank last.
 
-The most instructive result is that **cluster coherence points the wrong
-way**: the duplicated artefact measures ~0.88 and the genuine theme ~0.35,
-because near-identical text is trivially coherent. Anything adjudicating on
-coherence alone would accept the decoy and reject the real signal. That is why
-the brief also carries persistence, channel spread and duplicate ratio.
+The most instructive result is that **cluster coherence points the wrong way**.
+Measured from the vectors, the duplicated artefact scores **0.95** and the
+genuine theme **0.12**, because near-identical text is trivially coherent.
+Anything adjudicating on coherence alone would accept the decoy and reject the
+real signal — which is why the brief also carries persistence, channel spread
+and duplicate ratio.
 
 ---
 
@@ -108,45 +89,43 @@ the brief also carries persistence, channel spread and duplicate ratio.
 
 | Path | What |
 |---|---|
-| [`domain/`](src/complaints_intelligence/domain/) | Pydantic schemas for every object crossing a stage boundary |
-| [`synth/`](src/complaints_intelligence/synth/) | Seeded generation; `signals.py` is the ground truth |
-| [`metrics/`](src/complaints_intelligence/metrics/) | Velocity tests with FDR control, fact derivation, `build_brief()` |
-| [`store/`](src/complaints_intelligence/store/) | DuckDB standing in for BigQuery, behind repository protocols |
-| [`retrieval/`](src/complaints_intelligence/retrieval/) | Embedding and vector search — the RAG substrate |
-| [`llm/`](src/complaints_intelligence/llm/) | `LLMClient` protocol; replay, recording and Gemini implementations |
-| [`prompts/v1/`](src/complaints_intelligence/prompts/v1/) | Versioned prompt files. A prompt change is a code change. |
-| [`agent/`](src/complaints_intelligence/agent/) | The bounded LangGraph pipeline, its tools, budgets and untrusted-text choke point |
-| [`critic/`](src/complaints_intelligence/critic/) | Programmatic verification. No model involved. |
-| [`render/`](src/complaints_intelligence/render/) | Deterministic templating; fact and citation resolution |
+| [`fixtures/`](src/complaints_intelligence/fixtures/) | The hand-written data, and the taxonomy it is classified against |
+| [`inputs.py`](src/complaints_intelligence/inputs.py) · [`outputs.py`](src/complaints_intelligence/outputs.py) | Typed schemas for every object crossing a stage boundary |
+| [`store.py`](src/complaints_intelligence/store.py) | Read-only data access and similarity search — the RAG substrate |
+| [`brief.py`](src/complaints_intelligence/brief.py) | Assembles the agent's view of the week from the fact store |
+| [`agent/`](src/complaints_intelligence/agent/) | The bounded graph, its tools, budgets and untrusted-text choke point |
+| [`critic.py`](src/complaints_intelligence/critic.py) | Programmatic verification. No model involved |
+| [`render.py`](src/complaints_intelligence/render.py) | Deterministic templating; fact and citation resolution |
+| [`prompts/v1/`](src/complaints_intelligence/prompts/v1/) | Versioned prompt files. A prompt change is a code change |
+| [`llm/`](src/complaints_intelligence/llm/) | The `LLMClient` seam: offline replay, and the live Gemini client |
 
 ### Where to look first
 
 - [`agent/graph.py`](src/complaints_intelligence/agent/graph.py) — the graph, which reads as the diagram in §8
 - [`agent/untrusted.py`](src/complaints_intelligence/agent/untrusted.py) — the single point where customer text enters a prompt
-- [`critic/checks.py`](src/complaints_intelligence/critic/checks.py) — what must hold before anything renders
-- [`metrics/statistics.py`](src/complaints_intelligence/metrics/statistics.py) — the tests behind every trend claim
+- [`critic.py`](src/complaints_intelligence/critic.py) — what must hold before anything renders
 
 ---
 
 ## Development
 
 ```bash
-uv run pytest        # unit, adversarial and golden suites
-uv run mypy          # --strict over src
+uv run pytest        # 46 tests
+uv run mypy          # --strict over src and tests
 uv run ruff check
-uv run pre-commit install
 ```
 
-The [`tests/adversarial/`](tests/adversarial/) suite is where most of the
-assurance lives. It proves each critic check fires when provoked through the
-full graph, that injection payloads are fenced in the prompts *actually sent*,
-that the revise loop terminates when repair is impossible, and — by reading
-the source — that no node can bypass the choke point or reach raw SQL.
+Most of the assurance lives in
+[`tests/test_critic.py`](tests/test_critic.py) and
+[`tests/test_injection.py`](tests/test_injection.py). Between them they prove
+that each verification check fires when provoked through the full graph, that
+the revise loop terminates when repair is impossible, and that injection
+payloads are fenced in the prompts *actually sent* to the model.
 
 ## Out of scope
 
 Ingestion, transcription, PII redaction, injection screening, classification,
-taxonomy management, dashboards and infrastructure are assumed to have
-happened upstream. Synthetic data is generated *as if* it had passed through
-all of them. Where the design depends on one of these stages, the interface is
-stubbed and the assumption noted.
+taxonomy management, statistical computation of metrics, dashboards and
+infrastructure are assumed to have happened upstream — see
+[`02-architecture.md`](docs/design/02-architecture.md) for how each is designed.
+The fixture is written *as if* it had passed through all of them.
