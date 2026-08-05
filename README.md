@@ -83,11 +83,18 @@ report has something true to say and the tests have a ground truth:
 | Signal | Exercises |
 |---|---|
 | `payments_failed` 48 → 131, concentrated in the app | A genuine driver, with a real sentiment shift alongside it |
+| `direct_debit_errors` 24 → 45, unconcentrated | A rise whose tone also moves far enough to report, so §2 has a story that is not an echo of the payments spike |
+| `overdraft_fees` 31 → 58, concentrated in regulator referrals | A rise reaching the firm through the ombudsman. Its tone moved too, but not far enough to clear the threshold — *tested and not carried*, which must read differently from *not measured* |
 | `statement_errors` 19 → 24 | Clears a naive threshold, **fails** the corrected velocity test — reported as tested and not significant |
 | `CT-007` round-up double-debits | A real emerging theme: coherent, persistent, spread across channels |
 | `CT-012` duplicated branch notes | **The decoy.** Large and superficially compelling, but one CRM template repeated. The agent must reject it. |
 | 5 injection payloads | Reach retrieval, are fenced, and cannot alter a figure or a quotation |
 | 2 residual PII leaks | Exercise the critic's backstop |
+
+The five genuine movements are sized against an investigation budget of five,
+so the budget binds exactly and the category the agent declines to investigate
+is the one that failed its significance test — not whichever happened to rank
+last.
 
 The most instructive result is that **cluster coherence points the wrong
 way**: the duplicated artefact measures ~0.88 and the genuine theme ~0.35,

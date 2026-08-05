@@ -261,10 +261,16 @@ plan → investigate → adjudicate → remediate → critic ⇄ revise → rend
 **The critic enforces:**
 
 - every numeric claim resolves to a fact ID — 100%, an assertion not a metric
+- no literal figure anywhere in a claim, digits or spelled out
+- every fact reference sits where a figure reads correctly — substitution
+  happens *after* verification, so nothing else looks at the sentence the
+  reader gets
 - every qualitative claim carries ≥2 complaint citations with valid offsets
 - no causal language: "coincident with" is permitted, "caused by" is not; causal
   hypotheses are emitted as requiring confirmation by a named owner
-- zero PII in output text
+- zero PII in output text, scanned over resolved quotations as well as model
+  prose, using the renderer's own span arithmetic so the check cannot inspect
+  less than the report prints
 - no unexplained internal acronyms
 
 **What the agent cannot do:** compute any statistic; rank the top 5; modify the
@@ -331,6 +337,9 @@ decision belongs to.
 | One embedding space over complaint text; precedent matched complaint-to-complaint and joined to its note | A second index over resolution notes; asymmetric complaint→resolution retrieval |
 | Facts computed before generation | Post-hoc numeric verification |
 | LangGraph as the graph runtime | A bespoke loop; a general agent framework |
+| Sentiment trends rendered deterministically from the metrics brief, carried on the report object | A model-authored sentiment section, which would put a model in the path of a figure; passing the brief to the renderer instead, which would leave the report object unable to reproduce its own Markdown |
+| Fact-reference placement given as a worked phrase per fact in the prompt's fact block, and enforced by a critic check | Prose guidance alone — it was already present, with a worked example, and the model broke it anyway; the check alone, which repairs nothing without the prompt change |
+| Five genuine planted volume movements against an investigation budget of five | Loosening the flagging thresholds until a fifth category appears, which surfaces generator noise as a driver and contradicts the decoy signal; a single new signal, which leaves a spare slot the noise category fills |
 
 The demonstration package substitutes for three of these so that it runs
 offline with no credentials. The production choice is on the left.
