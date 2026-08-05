@@ -1,21 +1,50 @@
 # complaints-intelligence
 
-Part 3 of a technical interview exercise: the **agentic report generation loop**
-that turns a week of complaint metrics into a written, fact-grounded and fully
-cited compliance report.
-
-| Part | Document |
-|---|---|
-| 1 — Problem statement | [`01-problem-statement.md`](docs/design/01-problem-statement.md) |
-| 2 — Solution architecture | [`02-architecture.md`](docs/design/02-architecture.md) |
-| 3 — Code | this package, implementing **section 8** of the architecture |
-| 4 — Evaluation | [`04-evaluation.md`](docs/design/04-evaluation.md) |
-
-Design decisions, including the alternatives rejected, are in the
-[*Key decisions*](docs/design/02-architecture.md#key-decisions) table.
+The **agentic report generation loop** that turns a week of complaint metrics
+into a written, fact-grounded and fully cited compliance report.
 
 **All data here is synthetic.** Nothing resembles any real firm's systems,
 taxonomies or complaints.
+
+---
+
+## Where this fits
+
+This package is one stage of a weekly pipeline.
+
+**What arrives.** Complaints land from four channels — regulator referrals, a
+mobile app form, branch CRM notes and call centre audio — and are mapped into a
+single envelope, redacted, screened for injection, and quarantined rather than
+dropped if any of that fails. Each complaint is then enriched with a category,
+sentiment, evidence spans and a confidence score, and routed: records the
+classifier is confident about go to closed-set attribution against a versioned
+taxonomy; the rest fall into a residual pool that is clustered into *candidate
+themes*. A deterministic metrics layer aggregates all of it and emits **facts** —
+typed values with provenance — plus a **metrics brief** ranking the week's
+significant movements. That brief and the fact store are the entire view of the
+week this package gets, which is what makes a run bounded, comparable between
+weeks and reproducible.
+
+**What leaves.** The fact store is the trust boundary: everything below it is
+deterministic and reproducible, everything above it generative. This package sits
+directly above that seam. It emits a report object — versioned, immutable, with
+every claim referencing fact IDs and every quotation referencing a complaint ID
+and character offsets — which goes downstream to a named human reviewer for
+sign-off before anything is published.
+
+| Stage | Status here |
+|---|---|
+| Sources, transcription | Assumed upstream |
+| Ingest: channel adapters, PII redaction, injection screen, quarantine | Assumed upstream |
+| Enrichment: category, sentiment, evidence spans, confidence | Assumed upstream |
+| Routing: attribution track, discovery track → candidate themes | Assumed upstream |
+| Metrics and fact store → facts + metrics brief | Assumed upstream — its output is committed as [`fixtures/`](src/complaints_intelligence/fixtures/) |
+| **Agentic loop: investigate → adjudicate → remediate → critic ⇄ revise → render** | **This package** |
+| Sign-off, dashboard, committee pack, email digest | Assumed downstream |
+
+The loop itself is read-only, budgeted in steps and revisions, has no network
+egress and needs no credentials — which is why the quickstart below runs offline
+in seconds.
 
 ---
 
@@ -116,7 +145,7 @@ and duplicate ratio.
 
 ### Where to look first
 
-- [`agent/graph.py`](src/complaints_intelligence/agent/graph.py) — the graph, which reads as the diagram in §8
+- [`agent/graph.py`](src/complaints_intelligence/agent/graph.py) — the graph: investigate, adjudicate, remediate, then critic ⇄ revise
 - [`agent/untrusted.py`](src/complaints_intelligence/agent/untrusted.py) — the single point where customer text enters a prompt
 - [`critic.py`](src/complaints_intelligence/critic.py) — what must hold before anything renders
 
@@ -137,10 +166,95 @@ that each verification check fires when provoked through the full graph, that
 the revise loop terminates when repair is impossible, and that injection
 payloads are fenced in the prompts *actually sent* to the model.
 
+---
+
+## Glossary
+
+Terms used consistently across the code and the report.
+
+**Complaint envelope.** The canonical schema every channel is mapped into.
+Channel-specific handling is confined to the adapters upstream; `channel` is
+retained as a feature, not discarded.
+
+**Taxonomy version.** The complaint taxonomy is versioned data, never mutated in
+place. Every enriched record is stamped with the version used, so trend series
+stay comparable across structural changes.
+
+**Confidence and novelty.** Confidence is how certain the classifier is
+*between known categories*; novelty is how far a record sits from the region of
+embedding space the known categories occupy. They are not interchangeable — a
+genuinely new complaint type is frequently assigned to the nearest existing
+category *with high confidence*, so detecting it needs the un-normalised
+measure.
+
+**Abstention.** A deliberate refusal to assign a category rather than a forced
+guess. Abstained complaints still count in totals but do not contribute to
+per-category trends, so hard cases are never silently dropped from the
+denominator.
+
+**Residual pool.** The abstained records; the input to theme discovery.
+
+**Candidate theme (`CT-nnn`).** A persistent cluster in the residual pool, given
+a stable identity so its growth can be measured across weeks. It reaches the
+agent as narrative to adjudicate, never as a row in the trend table, because it
+has no comparable history.
+
+**Fact.** A typed value with provenance, emitted by the deterministic metrics
+layer and identified by a fact ID. The report references the ID; the value is
+substituted at render time, which is what stops a model fabricating a figure.
+
+**Fact store.** The immutable, run-stamped collection of facts for one week. The
+trust boundary of the system.
+
+**Run.** One weekly execution, identified by a run ID. Facts are written once per
+run and never mutated — a re-projection produces a new run, not an edit, so a
+published report keeps reconciling with the store it cites.
+
+**Metrics brief.** The compact object the metrics layer emits: flagged
+categories, drift signals, candidate themes, health indicators and headline
+aggregates, all as fact IDs, ranked and truncated. It is the agent's entire view
+of the week.
+
+**Finding.** A drafted section of the report — a headline, claims, and citations.
+
+**Claim.** One assertion within a finding, referencing the fact IDs it depends on
+and carrying its own citations.
+
+**Citation.** A pointer to source text: a complaint ID plus character offsets.
+The renderer slices the quoted span out of the store, so the model never handles
+the words it quotes.
+
+**Exemplar.** A complaint retrieved to illustrate what customers in a flagged
+category are actually describing.
+
+**Precedent.** A closed complaint with a resolution note recording what was
+actually done about it. Retrieval is complaint-to-complaint — matching the new
+description against the text of closed cases, then joining to their notes — which
+keeps the comparison symmetric.
+
+**Critic.** Programmatic verification of a draft before anything renders: facts
+resolve, no figure is typed in prose, every claim carries at least two citations,
+every offset returns the text it claims, no personal data survives. No model is
+involved.
+
+**Revise loop.** The bounded repair path. A failing draft is re-prompted with the
+specific checks that failed, against the same retrieved evidence, at most twice.
+
+**Untrusted text.** Complaint text is customer-supplied and adversarial-capable.
+It is data, never instruction, at every point it enters a prompt — including text
+returned by retrieval — and all of it passes through one fencing function that
+makes the boundary explicit and preserves length, so citation offsets cannot
+shift.
+
+Significance testing, effect sizing and the ranking of movements happen upstream
+in the metrics layer. This package consumes their output and computes no
+statistic of its own.
+
+---
+
 ## Out of scope
 
 Ingestion, transcription, PII redaction, injection screening, classification,
 taxonomy management, statistical computation of metrics, dashboards and
-infrastructure are assumed to have happened upstream — see
-[`02-architecture.md`](docs/design/02-architecture.md) for how each is designed.
-The fixture is written *as if* it had passed through all of them.
+infrastructure are assumed to have run upstream or to run downstream. The fixture
+is written *as if* it had passed through all of them.

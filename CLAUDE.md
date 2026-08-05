@@ -9,9 +9,10 @@ interview exercise. It demonstrates one stage of a larger design: the **agentic
 report generation loop** that turns weekly complaint metrics into written
 findings.
 
-The full solution design lives in `docs/design/`. Read
-`01-problem-statement.md` and `02-architecture.md` before making changes — this
-package implements section 8 of the architecture.
+The full solution design lives in `private/design/` — local reference material,
+gitignored, not part of the deliverable. Read `01-problem-statement.md` and
+`02-architecture.md` before making changes — this package implements section 8
+of the architecture.
 
 **All data is synthetic.** Nothing here should resemble any real firm's internal
 systems, taxonomies, or complaints.
@@ -85,7 +86,7 @@ must be able to read the whole thing. That constraint outranks completeness.
 - Prefer the simple thing. Depth in the agentic loop matters more than breadth
   across stages.
 - **Docstrings are at most two sentences.** Design reasoning belongs in the
-  *Key decisions* table of `docs/design/02-architecture.md`, not in the code.
+  *Key decisions* table of `private/design/02-architecture.md`, not in the code.
 - Don't add dependencies without a reason in the commit message.
 - Keep fixtures small enough that a human can read them and follow what the
   pipeline is doing.
