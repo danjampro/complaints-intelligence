@@ -33,6 +33,21 @@ This runs the agent against committed recordings of a real model, verifies the
 draft, and renders the report. To call the live model instead (needs
 `GEMINI_API_KEY`): `uv sync --all-extras && uv run ci run --live`.
 
+### Reading the output without running anything
+
+**[`out/report.md`](out/report.md) is committed.** It is the actual output of
+the command above — real Gemini prose, with every figure substituted from the
+fact store and every quotation sliced from stored complaint text. Start there
+if you would rather read the result than execute the pipeline.
+
+[`out/report.json`](out/report.json) is committed alongside it. That object is
+the record; the Markdown is a projection of it, which is what allows a
+published report to be regenerated exactly from the store plus the pinned
+versions in §6 of the report.
+
+Both are regenerated in place by `ci run`, so the only line that changes
+between identical runs is the generation timestamp.
+
 ---
 
 ## The central claim

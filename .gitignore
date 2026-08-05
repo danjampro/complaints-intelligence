@@ -11,7 +11,6 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Generated report output. The fixture it is generated from lives under
-# src/complaints_intelligence/fixtures/ and IS committed.
-out/
+# out/ is deliberately NOT ignored. The generated report is committed so the
+# submission can be read without running anything; `ci run` overwrites it.
 .env
