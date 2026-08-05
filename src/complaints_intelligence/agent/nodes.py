@@ -276,14 +276,15 @@ def remediate_node(state: RunState, context: RunContext) -> dict[str, Any]:
                 break
 
             # Too few apply. Widen rather than accept a recommendation resting
-            # on evidence the model has just called irrelevant.
+            # on evidence the model has just called irrelevant — and if the
+            # widened pass fails too, make no recommendation at all.
             if attempt == 1:
                 context.ledger.note(
                     f"remediation for {finding.finding_id}: only {transferring} of "
                     f"{len(output.precedents)} precedents transferred; widening "
                     f"retrieval beyond the category"
                 )
-                output = None
+            output = None
 
         if output is None:
             context.ledger.note(

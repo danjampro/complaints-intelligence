@@ -17,6 +17,12 @@ Check                 Rationale
 ``no_pii``            Personal data is removed upstream; this is the backstop
                       for what redaction missed.
 ===================== ======================================================
+
+The first two run over every piece of prose the model wrote that reaches the
+reader — findings, rejected-theme rationales and recommendations alike.
+``citations_resolve`` covers every span the report quotes. ``citations_present``
+is a rule about *claims*: a recommendation is grounded by a named transferable
+precedent instead, which the remediate node enforces.
 """
 
 from __future__ import annotations
@@ -28,10 +34,12 @@ from complaints_intelligence.config import CriticThresholds
 from complaints_intelligence.outputs import (
     FACT_PLACEHOLDER_RE,
     Adjudication,
+    Citation,
     Claim,
     CriticCheck,
     CriticReport,
     Finding,
+    Remediation,
 )
 from complaints_intelligence.store import Store
 
@@ -87,20 +95,54 @@ def _check(name: str, offending: list[str], clean: str, failed: str) -> CriticCh
 
 
 def published_prose(
-    findings: Sequence[Finding], adjudications: Sequence[Adjudication]
+    findings: Sequence[Finding],
+    adjudications: Sequence[Adjudication],
+    remediations: Sequence[Remediation] = (),
 ) -> list[tuple[str, str, tuple[str, ...]]]:
     """Everything the model wrote that reaches the reader, as
     ``(location, text, declared_fact_refs)``.
 
-    Adjudication rationales are included because a *rejected* theme never
-    becomes a finding, yet its rationale is still published in the report —
-    so checking findings alone would leave that prose unverified.
+    Adjudication rationales and recommendations are included because neither is
+    a finding, yet both are published — a *rejected* theme's rationale appears
+    in section 3 and a recommendation in section 4, so checking findings alone
+    would leave that prose unverified.
+
+    Remediations are located as ``remediation <finding_id>`` rather than by the
+    finding's own ID: the revise node redrafts findings, so attributing a
+    recommendation's failure to one would spend the revision budget redrafting
+    prose that is not at fault.
     """
     prose: list[tuple[str, str, tuple[str, ...]]] = [
         (f.finding_id, c.text, c.fact_refs) for f in findings for c in f.claims
     ]
     prose += [(a.theme_id, a.rationale, ()) for a in adjudications]
+    prose += [
+        (f"remediation {r.finding_id}", r.recommendation, r.fact_refs)
+        for r in remediations
+    ]
     return prose
+
+
+def cited_spans(
+    findings: Sequence[Finding], remediations: Sequence[Remediation] = ()
+) -> list[tuple[str, Citation]]:
+    """Every citation that reaches the reader, as ``(location, citation)``.
+
+    Shared by the offset check and the PII scan so the two cannot disagree
+    about which spans the report actually quotes.
+    """
+    spans: list[tuple[str, Citation]] = [
+        (f.finding_id, citation)
+        for f in findings
+        for claim in f.claims
+        for citation in claim.citations
+    ]
+    spans += [
+        (f"remediation {r.finding_id}", citation)
+        for r in remediations
+        for citation in r.citations
+    ]
+    return spans
 
 
 def check_facts_resolve(
@@ -180,7 +222,9 @@ def check_citations_present(
     )
 
 
-def check_citations_resolve(findings: Sequence[Finding], store: Store) -> CriticCheck:
+def check_citations_resolve(
+    spans: Sequence[tuple[str, Citation]], store: Store
+) -> CriticCheck:
     """Every citation resolves to real text at the offsets given.
 
     This is what makes misquotation structurally impossible: the renderer pulls
@@ -188,22 +232,18 @@ def check_citations_resolve(findings: Sequence[Finding], store: Store) -> Critic
     would produce a quote that does not exist.
     """
     offending: list[str] = []
-    for finding in findings:
-        for claim in finding.claims:
-            for citation in claim.citations:
-                try:
-                    complaint = store.get_complaint(citation.complaint_id)
-                except KeyError:
-                    offending.append(
-                        f"{finding.finding_id}: no complaint {citation.complaint_id!r}"
-                    )
-                    continue
-                if citation.end > len(complaint.text) or citation.start >= citation.end:
-                    offending.append(
-                        f"{finding.finding_id}: {citation.complaint_id} offsets "
-                        f"{citation.start}:{citation.end} fall outside text of "
-                        f"length {len(complaint.text)}"
-                    )
+    for location, citation in spans:
+        try:
+            complaint = store.get_complaint(citation.complaint_id)
+        except KeyError:
+            offending.append(f"{location}: no complaint {citation.complaint_id!r}")
+            continue
+        if citation.end > len(complaint.text) or citation.start >= citation.end:
+            offending.append(
+                f"{location}: {citation.complaint_id} offsets "
+                f"{citation.start}:{citation.end} fall outside text of "
+                f"length {len(complaint.text)}"
+            )
     return _check(
         "citations_resolve",
         offending,
@@ -236,19 +276,22 @@ def verify(
     findings: Sequence[Finding],
     *,
     adjudications: Sequence[Adjudication],
+    remediations: Sequence[Remediation],
     store: Store,
     thresholds: CriticThresholds,
     revision: int,
     scanned_texts: Sequence[tuple[str, str]],
 ) -> CriticReport:
     """Run every check and collect the verdict."""
-    prose = published_prose(findings, adjudications)
+    prose = published_prose(findings, adjudications, remediations)
     return CriticReport(
         checks=(
             check_facts_resolve(prose, store),
             check_no_literal_numbers(prose),
+            # Claims only. A recommendation's grounding is a named transferable
+            # precedent, enforced in the remediate node, not a citation count.
             check_citations_present(findings, thresholds),
-            check_citations_resolve(findings, store),
+            check_citations_resolve(cited_spans(findings, remediations), store),
             check_no_pii(scanned_texts),
         ),
         revision=revision,

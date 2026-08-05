@@ -2,7 +2,7 @@
   "run_id": "2026-W31",
   "week": "2026-W31",
   "baseline_week": "2026-W30",
-  "generated_at": "2026-08-05T09:10:56.855138Z",
+  "generated_at": "2026-08-05T10:20:11.305381Z",
   "status": "draft",
   "drivers": [
     {
@@ -524,47 +524,6 @@
         "f_0015"
       ],
       "suggested_owner": "Customer Relations"
-    },
-    {
-      "finding_id": "E-01",
-      "recommendation": "The servicing team should investigate the application update to identify the root cause of the duplicate transfers reported across {{f_0026}} complaints, following the approach used in previous technical investigations.",
-      "precedents": [
-        {
-          "complaint_id": "CMP-2026W30-0003",
-          "transfers": false,
-          "reason": "This precedent addresses a standing order failure notification issue rather than a duplicate transfer feature defect."
-        },
-        {
-          "complaint_id": "CMP-2026W30-0007",
-          "transfers": false,
-          "reason": "This precedent involves an ambiguous mandate instruction rather than a software-driven duplicate transaction."
-        },
-        {
-          "complaint_id": "CMP-2026W30-0005",
-          "transfers": false,
-          "reason": "This precedent concerns missing overdraft pre-notification alerts rather than duplicate feature transfers."
-        },
-        {
-          "complaint_id": "CMP-2026W30-0004",
-          "transfers": false,
-          "reason": "This precedent relates to suppressed alerting flags for overdraft charges rather than savings feature duplication."
-        },
-        {
-          "complaint_id": "CMP-2026W30-0009",
-          "transfers": false,
-          "reason": "This precedent deals with reasonable adjustment communication preferences rather than a savings feature issue."
-        },
-        {
-          "complaint_id": "CMP-2026W30-0010",
-          "transfers": false,
-          "reason": "This precedent addresses missing account closure notices rather than a duplicate transfer application defect."
-        }
-      ],
-      "citations": [],
-      "fact_refs": [
-        "f_0026"
-      ],
-      "suggested_owner": "Servicing Team"
     }
   ],
   "critic": {
@@ -617,7 +576,8 @@
     "tool_calls": 14,
     "notes": [
       "statement_errors was flagged but fell outside the investigation budget of 5",
-      "remediation for E-01: only 0 of 6 precedents transferred; widening retrieval beyond the category"
+      "remediation for E-01: only 0 of 6 precedents transferred; widening retrieval beyond the category",
+      "no transferable precedent for E-01; no recommendation made"
     ]
   },
   "reviewed_by": null

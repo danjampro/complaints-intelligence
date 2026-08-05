@@ -357,9 +357,16 @@ the node was removed.
 | `no_pii` | No personal data in output, scanned over resolved quotations as well as model prose — a quote pulled from the store can carry an identifier redaction missed. |
 
 The first two run over **everything the model wrote that reaches the reader**,
-not only over findings. A theme the agent *rejects* never becomes a finding, but
-its rationale is still published in §3 — so verifying findings alone would leave
-that prose unchecked.
+not only over findings. A theme the agent *rejects* never becomes a finding but
+its rationale is still published in §3, and a recommendation is published in §4 —
+so verifying findings alone would leave both unchecked. `citations_resolve`
+likewise covers every span the report quotes, in either section.
+
+`citations_present` is the exception, and deliberately so: it is a rule about
+*claims*. A recommendation is grounded by a named precedent the agent judged to
+transfer — enforced in `remediate`, which makes no recommendation at all when the
+widened retrieval still turns up nothing applicable — and a citation count is the
+wrong instrument for that.
 
 No model is involved in verification. These are assertions about structure and
 provenance, not judgements about quality, which is precisely why they can be

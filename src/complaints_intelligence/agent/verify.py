@@ -25,37 +25,35 @@ from complaints_intelligence.agent.state import (
     RunState,
 )
 from complaints_intelligence.agent.untrusted import render_complaints
-from complaints_intelligence.critic import verify
+from complaints_intelligence.critic import cited_spans, published_prose, verify
 from complaints_intelligence.fixtures.taxonomy import get_node
 from complaints_intelligence.outputs import CriticReport, Finding, FindingKind
+from complaints_intelligence.render import snap_span
 
 log = logging.getLogger(__name__)
 
 
 def _texts_to_scan(state: RunState, context: RunContext) -> list[tuple[str, str]]:
-    """Claim text plus the source spans citations will resolve to.
+    """Every published sentence, plus the source spans citations resolve to.
 
     A quotation pulled from the store can carry an identifier redaction missed,
     so scanning only the model's own prose would inspect the part of the report
-    least likely to contain any.
+    least likely to contain any. Spans are snapped exactly as the renderer snaps
+    them, so no character that reaches the reader escapes the scan.
     """
-    texts: list[tuple[str, str]] = []
-    for finding in state.findings:
-        for claim in finding.claims:
-            texts.append((finding.finding_id, claim.text))
-            for citation in claim.citations:
-                try:
-                    complaint = context.store.get_complaint(citation.complaint_id)
-                except KeyError:
-                    continue
-                texts.append(
-                    (
-                        f"{finding.finding_id}/{citation.complaint_id}",
-                        complaint.text[citation.start : citation.end],
-                    )
-                )
-    texts += [(r.finding_id, r.recommendation) for r in state.remediations]
-    texts += [(a.theme_id, a.rationale) for a in state.adjudications]
+    texts = [
+        (location, text)
+        for location, text, _ in published_prose(
+            state.findings, state.adjudications, state.remediations
+        )
+    ]
+    for location, citation in cited_spans(state.findings, state.remediations):
+        try:
+            complaint = context.store.get_complaint(citation.complaint_id)
+        except KeyError:
+            continue
+        start, end = snap_span(complaint.text, citation.start, citation.end)
+        texts.append((f"{location}/{citation.complaint_id}", complaint.text[start:end]))
     return texts
 
 
@@ -65,9 +63,10 @@ def critic_node(state: RunState, context: RunContext) -> dict[str, Any]:
     return {
         "critic": verify(
             state.findings,
-            # Rejected themes never become findings, but their rationale is
-            # still published, so it is verified alongside the findings.
+            # Neither a rejected theme's rationale nor a recommendation is a
+            # finding, but both are published, so both are verified alongside.
             adjudications=state.adjudications,
+            remediations=state.remediations,
             store=context.store,
             thresholds=context.settings.critic,
             revision=state.revision,

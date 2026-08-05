@@ -38,7 +38,9 @@ class ScriptedLLM:
     """
 
     model: str = "scripted-test-model"
-    #: One of: literal_number, bad_fact, one_citation, bad_offsets, pii.
+    #: One of: literal_number, bad_fact, one_citation, bad_offsets, pii,
+    #: remediation_number, no_transfer. The last two affect only ``_remediate``,
+    #: so they do not perturb the defect matrix over the other checks.
     defects: frozenset[str] = frozenset()
     #: Verdict the adjudicator returns per theme ID. Defaults to real_signal.
     verdicts: dict[str, str] = field(default_factory=dict)
@@ -136,17 +138,22 @@ class ScriptedLLM:
     def _remediate(self, rendered: str) -> RemediateOutput:
         # Precedents come from the resolution half of each pair; citations from
         # the complaint half, which is where the offsets point.
+        transfers = "no_transfer" not in self.defects
         return RemediateOutput(
             recommendation=(
-                "Trace and re-present affected transfers, refund charges arising "
-                "from the failure, and raise the underlying timeout with the "
-                "payments engineering team."
+                "Trace the 142 affected transfers and refund the charges."
+                if "remediation_number" in self.defects
+                else "Trace and re-present affected transfers, refund charges "
+                "arising from the failure, and raise the underlying timeout "
+                "with the payments engineering team."
             ),
             precedents=[
                 DraftPrecedent(
                     complaint_id=i,
-                    transfers=True,
-                    reason="Same failure mode and the action resolved it.",
+                    transfers=transfers,
+                    reason="Same failure mode and the action resolved it."
+                    if transfers
+                    else "A different failure mode; the action does not apply.",
                 )
                 for i in _RESOLUTION_ID_RE.findall(rendered)[:3]
             ],

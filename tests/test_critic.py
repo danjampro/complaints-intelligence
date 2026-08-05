@@ -62,6 +62,44 @@ def test_a_rejected_themes_rationale_is_verified_too(store: Store, brief: Metric
     assert "CT-012" in locations
 
 
+def test_a_recommendation_is_verified_like_any_other_published_prose(
+    store: Store, brief: MetricsBrief
+):
+    """A recommendation is not a finding, but it is published in section 4 —
+    so verifying findings alone would leave that prose unchecked."""
+    report, _ = _run(
+        store,
+        brief,
+        ScriptedLLM(
+            defects=frozenset({"remediation_number"}),
+            verdicts={"CT-012": "ingest_artefact"},
+        ),
+    )
+    assert "no_literal_numbers" in _failed(report)
+    offending = [o for check in report.critic.failures for o in check.offending]
+    assert any(o.startswith("remediation ") for o in offending), offending
+
+
+def test_no_recommendation_is_made_when_no_precedent_transfers(
+    store: Store, brief: MetricsBrief
+):
+    """Retrieval returns what is similar, which is not what applies. When the
+    widened pass still finds nothing transferable, the run records the gap
+    rather than publishing advice resting on evidence just called irrelevant.
+    """
+    report, markdown = _run(
+        store,
+        brief,
+        ScriptedLLM(
+            defects=frozenset({"no_transfer"}),
+            verdicts={"CT-012": "ingest_artefact"},
+        ),
+    )
+    assert not report.remediations
+    assert any("no transferable precedent" in note for note in report.trace.notes)
+    assert "No recommendation was grounded in transferable precedent" in markdown
+
+
 def test_a_clean_draft_passes_every_check(store: Store, brief: MetricsBrief):
     report, _ = _run(store, brief, ScriptedLLM(verdicts={"CT-012": "ingest_artefact"}))
     assert report.critic.passed, _failed(report)

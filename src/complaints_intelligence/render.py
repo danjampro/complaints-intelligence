@@ -57,14 +57,31 @@ def resolve_text(text: str, store: Store, *, strict: bool = True) -> str:
     return FACT_PLACEHOLDER_RE.sub(substitute, text)
 
 
+def snap_span(text: str, start: int, end: int) -> tuple[int, int]:
+    """Widen a span to whole words, clamped to the text.
+
+    Offsets are chosen by the model and land mid-word often enough to make the
+    report read as broken. Widening only ever *adds* neighbouring characters, so
+    the quote remains a slice of stored text and the misquotation guarantee is
+    untouched. The critic snaps identically, so no character reaches the reader
+    unscanned.
+    """
+    start = max(0, min(start, len(text)))
+    end = max(start, min(end, len(text)))
+    while start > 0 and (text[start - 1].isalnum() or text[start - 1] == "'"):
+        start -= 1
+    while end < len(text) and (text[end].isalnum() or text[end] == "'"):
+        end += 1
+    return start, end
+
+
 def resolve_quote(citation: Citation, store: Store) -> dict[str, Any]:
     """Pull the quoted span out of the stored complaint text.
 
     The model never handles the words it quotes, so it cannot alter them.
     """
     complaint = store.get_complaint(citation.complaint_id)
-    start = min(citation.start, len(complaint.text))
-    end = min(citation.end, len(complaint.text))
+    start, end = snap_span(complaint.text, citation.start, citation.end)
     quote = complaint.text[start:end].strip()
     if len(quote) > _MAX_QUOTE_CHARS:
         quote = quote[: _MAX_QUOTE_CHARS - 1].rstrip() + "…"

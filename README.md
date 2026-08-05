@@ -125,7 +125,7 @@ and duplicate ratio.
 ## Development
 
 ```bash
-uv run pytest        # 46 tests
+uv run pytest        # 50 tests
 uv run mypy          # --strict over src and tests
 uv run ruff check
 ```

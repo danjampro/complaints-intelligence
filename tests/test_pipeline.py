@@ -12,6 +12,7 @@ import pytest
 from complaints_intelligence.config import Settings
 from complaints_intelligence.inputs import MetricsBrief
 from complaints_intelligence.outputs import FACT_PLACEHOLDER_RE, Report
+from complaints_intelligence.render import snap_span
 from complaints_intelligence.runner import run_week
 from complaints_intelligence.store import Store
 from tests.fakes import ScriptedLLM
@@ -115,6 +116,25 @@ class TestGrounding:
                     complaint = store.get_complaint(citation.complaint_id)
                     assert citation.end <= len(complaint.text)
                     assert complaint.text[citation.start : citation.end]
+                    checked += 1
+        assert checked > 0
+
+    def test_every_rendered_quotation_begins_and_ends_on_a_word_boundary(
+        self, run: tuple[Report, str], store: Store
+    ):
+        """Model offsets land mid-word often enough to make the report read as
+        broken. Snapping only ever widens, so the quote stays a slice of stored
+        text and the misquotation guarantee is untouched."""
+        report, _ = run
+        checked = 0
+        for finding in (*report.drivers, *report.emerging):
+            for claim in finding.claims:
+                for citation in claim.citations:
+                    text = store.get_complaint(citation.complaint_id).text
+                    start, end = snap_span(text, citation.start, citation.end)
+                    assert start <= citation.start and end >= citation.end
+                    assert start == 0 or not text[start - 1].isalnum()
+                    assert end == len(text) or not text[end].isalnum()
                     checked += 1
         assert checked > 0
 

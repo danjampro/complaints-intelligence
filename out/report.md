@@ -1,7 +1,7 @@
 # Weekly Complaints Report — 2026-W31
 
 **Status:** draft · **Run:** `2026-W31` ·
-**Generated:** 2026-08-05 09:10 UTC ·
+**Generated:** 2026-08-05 10:20 UTC ·
 **Compared against:** 2026-W30
 
 > This report is a **draft**. It is not a published record until a named
@@ -20,15 +20,15 @@ Customers report that outbound payments failed repeatedly or were rejected witho
 
 > “outbound payment was rejected repeatedly without explanation and”
 > — `CMP-2026W31-0006` (fos referral, chars 32–96)
-> “my transfer failed with no explanation at all. I tried t”
-> — `CMP-2026W31-0002` (mobile app, chars 0–56)
+> “my transfer failed with no explanation at all. I tried three”
+> — `CMP-2026W31-0002` (mobile app, chars 0–60)
 
 Transfers experienced delays or duplicated withdrawals, accompanied by late fees.
 
-> “order was not paid on the due date. It sat as pending for four days and then just failed, and I incurred a late fee”
-> — `CMP-2026W31-0004` (call centre, chars 62–178)
-> “same payment was taken from my account twice. I have been charged doub”
-> — `CMP-2026W31-0003` (mobile app, chars 4–74)
+> “order was not paid on the due date. It sat as pending for four days and then just failed, and I incurred a late fee that”
+> — `CMP-2026W31-0004` (call centre, chars 62–182)
+> “same payment was taken from my account twice. I have been charged double”
+> — `CMP-2026W31-0003` (mobile app, chars 4–76)
 
 **Hypotheses requiring confirmation.** These are not established findings. Each
 needs a named owner to confirm or reject it before it may be relied on.
@@ -41,17 +41,17 @@ needs a named owner to confirm or reject it before it may be relied on.
 
 Cancelled direct debits continue to be collected from accounts, reaching 45 complaints.
 
-> “direct debit I cancelled was taken anyway. I h”
-> — `CMP-2026W31-0012` (call centre, chars 50–96)
+> “direct debit I cancelled was taken anyway. I have”
+> — `CMP-2026W31-0012` (call centre, chars 50–99)
 > “a direct debit I cancelled was taken anyway.”
 > — `CMP-2026W31-0015` (mobile app, chars 0–44)
 
 Direct debits are reported as cancelled without customer instruction, leading to lapsed insurance policies.
 
-> “ter that a direct debit was cancelled without instru”
-> — `CMP-2026W31-0016` (branch, chars 23–75)
-> “, um, a direct debit was cancelled without my in”
-> — `CMP-2026W31-0013` (call centre, chars 16–64)
+> “counter that a direct debit was cancelled without instruction”
+> — `CMP-2026W31-0016` (branch, chars 19–80)
+> “Right, um, a direct debit was cancelled without my instruction”
+> — `CMP-2026W31-0013` (call centre, chars 11–73)
 
 **Hypotheses requiring confirmation.** These are not established findings. Each
 needs a named owner to confirm or reject it before it may be relied on.
@@ -64,17 +64,17 @@ needs a named owner to confirm or reject it before it may be relied on.
 
 Customers report that overdraft fees were applied without any prior notification 58.
 
-> “ld about. No notification was s”
-> — `CMP-2026W31-0010` (mobile app, chars 43–74)
-> “charges were applied without any”
-> — `CMP-2026W31-0007` (fos referral, chars 50–83)
+> “told about. No notification was sent”
+> — `CMP-2026W31-0010` (mobile app, chars 41–77)
+> “charges were applied without any pre”
+> — `CMP-2026W31-0007` (fos referral, chars 50–86)
 
 Complainants note that charges occurred alongside delays in transaction processing 31.
 
-> “charge appeared three days after the transa”
-> — `CMP-2026W31-0009` (fos referral, chars 32–76)
-> “rged for going overdrawn and nobody w”
-> — `CMP-2026W31-0011` (call centre, chars 37–74)
+> “the charge appeared three days after the transaction”
+> — `CMP-2026W31-0009` (fos referral, chars 29–81)
+> “charged for going overdrawn and nobody warned”
+> — `CMP-2026W31-0011` (call centre, chars 34–79)
 
 **Hypotheses requiring confirmation.** These are not established findings. Each
 needs a named owner to confirm or reject it before it may be relied on.
@@ -87,24 +87,24 @@ needs a named owner to confirm or reject it before it may be relied on.
 
 The category reached 37 complaints, representing 68.2%.
 
-> “The complainant submits that disclosed needs were recorded and then ignored at every subsequent”
-> — `CMP-2026W31-0020` (fos referral, chars 0–96)
-> “Customer] Yeah so, I told you about my circumstances and no”
-> — `CMP-2026W31-0017` (call centre, chars 29–88)
+> “The complainant submits that disclosed needs were recorded and then ignored at every subsequent contact”
+> — `CMP-2026W31-0020` (fos referral, chars 0–103)
+> “Customer] Yeah so, I told you about my circumstances and nothing”
+> — `CMP-2026W31-0017` (call centre, chars 29–93)
 
 Customers report that previously disclosed needs and promised adjustments were ignored during subsequent contacts.
 
-> “at disclosed needs were recorded and then ignored at every subsequent contact,”
-> — `CMP-2026W31-0020` (fos referral, chars 26–105)
-> “support promised was never put in place. Customer states a vuln”
-> — `CMP-2026W31-0019` (branch, chars 44–107)
+> “that disclosed needs were recorded and then ignored at every subsequent contact, and”
+> — `CMP-2026W31-0020` (fos referral, chars 24–108)
+> “support promised was never put in place. Customer states a vulnerability”
+> — `CMP-2026W31-0019` (branch, chars 44–116)
 
 Individuals state that requested format changes, such as large print communications, were not implemented.
 
-> “ight, um, I asked for large print communications and”
-> — `CMP-2026W31-0018` (call centre, chars 12–64)
-> “d branch to report that the support promised was ne”
-> — `CMP-2026W31-0019` (branch, chars 16–67)
+> “Right, um, I asked for large print communications and”
+> — `CMP-2026W31-0018` (call centre, chars 11–64)
+> “attended branch to report that the support promised was never”
+> — `CMP-2026W31-0019` (branch, chars 9–70)
 
 **Hypotheses requiring confirmation.** These are not established findings. Each
 needs a named owner to confirm or reject it before it may be relied on.
@@ -119,15 +119,15 @@ Customers report that reduced branch operating hours conflict with standard work
 
 > “the branch hours have been cut and I cannot get there before it shuts. I work until”
 > — `CMP-2026W31-0024` (mobile app, chars 0–83)
-> “ght, um, my branch has gone and I do not use the internet at all. I care for my husband and”
-> — `CMP-2026W31-0022` (call centre, chars 13–105)
+> “Right, um, my branch has gone and I do not use the internet at all. I care for my husband and cannot”
+> — `CMP-2026W31-0022` (call centre, chars 11–111)
 
 Customers report that branch closures were announced with inadequate notice and lacked alternative access arrangements.
 
-> “The complainant's position is that the closure notice given was inadequate and that no alternati”
-> — `CMP-2026W31-0023` (fos referral, chars 0–96)
-> “Customer attended branch to report that their local branch has closed with very little not”
-> — `CMP-2026W31-0021` (branch, chars 0–90)
+> “The complainant's position is that the closure notice given was inadequate and that no alternative”
+> — `CMP-2026W31-0023` (fos referral, chars 0–98)
+> “Customer attended branch to report that their local branch has closed with very little notice”
+> — `CMP-2026W31-0021` (branch, chars 0–93)
 
 **Hypotheses requiring confirmation.** These are not established findings. Each
 needs a named owner to confirm or reject it before it may be relied on.
@@ -166,10 +166,10 @@ separate, human-approved decision.
 
 Customers report that the automatic savings round up feature transfers money twice for a single purchase, coinciding with an application update. This pattern appears across multiple channel streams among 34 complaints. The text shows distinct phrasing across records.
 
-> “, um, every time I tap my card the savings pot takes the round-up twice”
-> — `CMP-2026W31-0031` (call centre, chars 16–88)
-> “he automatic round-up savings feature is collecting each transfer twic”
-> — `CMP-2026W31-0032` (branch, chars 41–111)
+> “Right, um, every time I tap my card the savings pot takes the round-up twice over”
+> — `CMP-2026W31-0031` (call centre, chars 11–92)
+> “the automatic round-up savings feature is collecting each transfer twice”
+> — `CMP-2026W31-0032` (branch, chars 40–112)
 
 
 ### Candidate themes considered
@@ -207,9 +207,9 @@ assigned at sign-off)*
 
 - `CMP-2026W30-0003` — This precedent does not transfer because it concerns a correctly rejected standing order rather than systemic outbound payment failures and duplicate deductions.
 
-> “transfer failed and the m”
+> “transfer failed and the money”
 > — `CMP-2026W30-0001` (mobile app)
-> “me payment was taken from my account tw”
+> “same payment was taken from my account twice”
 > — `CMP-2026W30-0002` (call centre)
 
 ### F-02
@@ -227,7 +227,7 @@ assigned at sign-off)*
 
 - `CMP-2026W30-0007` — This precedent involves a mandate set up against the wrong account rather than unexpected collections of cancelled direct debits.
 
-> “, um, a direct debit I cancelled was collected anyway. I have the cancellation c”
+> “Right, um, a direct debit I cancelled was collected anyway. I have the cancellation confirmation”
 > — `CMP-2026W30-0006` (call centre)
 
 ### F-03
@@ -243,7 +243,7 @@ assigned at sign-off)*
 - `CMP-2026W30-0005` — This precedent transfers as it similarly addresses overdraft fees applied without warning by refunding unnotified charges.
 
 
-> “that overdraft charges were applied wi”
+> “submits that overdraft charges were applied with”
 > — `CMP-2026W30-0004` (fos referral)
 > “overdraft fees with no warning”
 > — `CMP-2026W30-0005` (mobile app)
@@ -261,9 +261,9 @@ assigned at sign-off)*
 - `CMP-2026W30-0008` — This precedent involves repeated failures to apply disclosed needs and adjust communications across multiple contacts.
 
 
-> “t that requested large print communicatio”
+> “report that requested large print communications”
 > — `CMP-2026W30-0009` (branch)
-> “u about my hearing loss and nothing”
+> “you about my hearing loss and nothing”
 > — `CMP-2026W30-0008` (call centre)
 
 ### F-05
@@ -281,26 +281,8 @@ assigned at sign-off)*
 
 - `CMP-2026W30-0011` — This precedent does not transfer because the closure decision followed a documented statutory notice period and was not upheld.
 
-> “rt that closure notice was not r”
+> “report that closure notice was not received”
 > — `CMP-2026W30-0010` (branch)
-
-### E-01
-
-The servicing team should investigate the application update to identify the root cause of the duplicate transfers reported across 34 complaints, following the approach used in previous technical investigations.
-
-**Suggested owner:** Servicing Team *(advisory — a named owner is
-assigned at sign-off)*
-
-
-**Precedents considered and ruled out**
-
-- `CMP-2026W30-0003` — This precedent addresses a standing order failure notification issue rather than a duplicate transfer feature defect.
-- `CMP-2026W30-0007` — This precedent involves an ambiguous mandate instruction rather than a software-driven duplicate transaction.
-- `CMP-2026W30-0005` — This precedent concerns missing overdraft pre-notification alerts rather than duplicate feature transfers.
-- `CMP-2026W30-0004` — This precedent relates to suppressed alerting flags for overdraft charges rather than savings feature duplication.
-- `CMP-2026W30-0009` — This precedent deals with reasonable adjustment communication preferences rather than a savings feature issue.
-- `CMP-2026W30-0010` — This precedent addresses missing account closure notices rather than a duplicate transfer application defect.
-
 
 
 ---
@@ -327,6 +309,7 @@ The following degradations were recorded. They are part of the record.
 
 - statement_errors was flagged but fell outside the investigation budget of 5
 - remediation for E-01: only 0 of 6 precedents transferred; widening retrieval beyond the category
+- no transferable precedent for E-01; no recommendation made
 
 ---
 
